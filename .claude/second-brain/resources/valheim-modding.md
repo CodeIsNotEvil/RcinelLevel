@@ -108,6 +108,12 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
 - **A pickaxe hit's terrain op is spawned on the attacker's client** (`Attack.SpawnOnHitTerrain`, after
   the ward and no-build checks), so a prefix on `TerrainOp.Awake` sees it before it is sent on
   (2026-11-03).
+- **Copied materials keep their texture tiling.** The game hoe's handle material tiles `_MainTex`
+  1 × -0.62; a copy with another texture keeps that unless `mainTextureScale`/`Offset` are reset.
+  UnityPy reads materials fully (they have type trees: `obj.object_reader.read_typetree()`), unlike
+  MonoBehaviours (2026-11-03).
+- **The build HUD's texts are TextMeshPro** (`Hud.m_buildSelection` is a `TMP_Text`); touching them
+  needs a reference to the game's `Unity.TextMeshPro.dll` (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by
   an MIT one (2026-09-30). Matters if RcinelLevel ever ships a library inside its package.
 

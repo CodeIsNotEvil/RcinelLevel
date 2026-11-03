@@ -43,3 +43,9 @@ way, (90, 0, 0) turns it about the handle instead; both are config values that a
 **And back, 2026-11-03**: turned end over end, the whole tool pointed backwards from the hand
 (owner's screenshot), so the first direction was right and only the blade was upside down. The half
 turn belongs about the handle: the default is now (90, 0, 0).
+
+**Stone from the game (2026-11-03)**: in the game the blade showed bright yellow. The game hoe's wood
+material, which ours was copied from, tiles its texture 1 × -0.62 (read from the game's files with
+UnityPy), so our atlas was flipped and the resin corner landed on the flint. The copy's tiling is reset
+now, and the flint parts are a second OBJ group drawn with the game hoe's own stone material, as the
+owner wanted the blade to look like the game's stone.

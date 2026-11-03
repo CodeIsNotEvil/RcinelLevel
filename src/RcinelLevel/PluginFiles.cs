@@ -58,7 +58,8 @@ internal sealed class PluginFiles(string directory, ManualLogSource logger)
 }
 
 /// <summary>
-/// Reads the OBJ files <c>models/build.py</c> writes: one object, triangles, positions, UVs and normals.
+/// Reads the OBJ files <c>models/build.py</c> writes: one object, triangles, positions, UVs and normals,
+/// in two groups: <c>usemtl atlas</c> (submesh 0) and <c>usemtl stone</c> (submesh 1).
 /// </summary>
 /// <remarks>
 /// OBJ is right-handed and Unity left-handed, so X is mirrored and every triangle's winding reversed;
@@ -75,7 +76,8 @@ internal static class ObjMesh
     var vertices = new List<Vector3>();
     var vertexUvs = new List<Vector2>();
     var vertexNormals = new List<Vector3>();
-    var triangles = new List<int>();
+    var triangles = new[] { new List<int>(), new List<int>() };
+    var group = 0;
 
     foreach (var raw in File.ReadLines(path))
     {
@@ -96,6 +98,9 @@ internal static class ObjMesh
         case "vn":
           normals.Add(new Vector3(-Float(parts[1]), Float(parts[2]), Float(parts[3])));
           break;
+        case "usemtl":
+          group = parts.Length > 1 && parts[1] == "stone" ? 1 : 0;
+          break;
         case "f":
           if (parts.Length != 4)
           {
@@ -103,23 +108,24 @@ internal static class ObjMesh
           }
 
           // Reversed winding, see the remarks.
-          triangles.Add(Corner(parts[1]));
-          triangles.Add(Corner(parts[3]));
-          triangles.Add(Corner(parts[2]));
+          triangles[group].Add(Corner(parts[1]));
+          triangles[group].Add(Corner(parts[3]));
+          triangles[group].Add(Corner(parts[2]));
           break;
       }
     }
 
-    if (triangles.Count == 0)
+    if (triangles[0].Count + triangles[1].Count == 0)
     {
       throw new InvalidDataException("no faces");
     }
 
-    var mesh = new Mesh { name = name };
+    var mesh = new Mesh { name = name, subMeshCount = 2 };
     mesh.SetVertices(vertices);
     mesh.SetUVs(0, vertexUvs);
     mesh.SetNormals(vertexNormals);
-    mesh.SetTriangles(triangles, 0);
+    mesh.SetTriangles(triangles[0], 0);
+    mesh.SetTriangles(triangles[1], 1);
     mesh.RecalculateBounds();
     mesh.RecalculateTangents();
     return mesh;

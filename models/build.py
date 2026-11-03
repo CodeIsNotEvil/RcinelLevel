@@ -16,9 +16,12 @@ Conventions the plugin's loader relies on:
   coordinates are left-handed, so the loader mirrors X when it reads the file.
 - The origin is where the hand holds the tool, and the tool's length runs along +Z (Y in the OBJ),
   head or handle up. How it sits in the hand is tuned in the game, at the attach point.
-- One mesh, one material, one texture: each part's UVs are fitted into its region of the atlas
-  (wood, flint, leather, resin). The plugin puts the atlas on a material copied from a game item, so
-  light and shading match Valheim. Triangles only, with normals.
+- One mesh with two materials, written as OBJ groups (`usemtl atlas`, `usemtl stone`). The atlas
+  parts (wood, leather, resin) have their UVs fitted into their region of the atlas, and the plugin
+  puts the atlas on a copy of the game hoe's wood material. The stone parts (the flint blade and
+  point) use the game hoe's own stone material, a tiling texture, so their UVs are in metres / 0.3,
+  the density of the game hoe's blade. The owner wanted the blade to look like the game's stone
+  (2026-11-03). Triangles only, with normals.
 
 The texture is drawn here with numpy rather than painted, so it rebuilds the same every time (fixed
 seeds). It is deliberately small and coarse, like Valheim's own hand-painted textures.
@@ -40,6 +43,8 @@ ATLAS_SIZE = 256
 # Atlas regions as (u0, v0, u1, v1). A margin keeps bilinear filtering and mipmaps from bleeding one
 # material into its neighbour at the region's edge.
 MARGIN = 6 / ATLAS_SIZE
+# Metres per repeat of the game's stone texture on the stone parts, the density of the game hoe's blade.
+STONE_TILE = 0.3
 REGIONS = {
   "wood": (0.0, 0.5, 0.5, 1.0),
   "flint": (0.5, 0.5, 1.0, 1.0),
@@ -119,7 +124,9 @@ class Model:
     self.bm = bmesh.new()
     self.uv = self.bm.loops.layers.uv.new("UVMap")
 
-  def _place(self, faces, verts, region: str, matrix: Matrix, smooth: bool, mapping) -> None:
+  def _place(self, faces, verts, region: str, matrix: Matrix, smooth: bool, mapping, extent) -> None:
+    """`mapping` gives each corner 0..1 across the face; `extent` is that span in metres (u, v)."""
+    stone = region == "flint"
     u0, v0, u1, v1 = REGIONS[region]
     u0, v0, u1, v1 = u0 + MARGIN, v0 + MARGIN, u1 - MARGIN, v1 - MARGIN
     for face in faces:
@@ -128,9 +135,14 @@ class Model:
       us = [c[0] for c in coords]
       if max(us) - min(us) > 0.5:
         coords = [(c[0] + 1 if c[0] < 0.5 else c[0], c[1]) for c in coords]
+      eu, ev = extent(face.normal)
       for loop, (u, v) in zip(face.loops, coords):
-        loop[self.uv].uv = (u0 + (u1 - u0) * (u % 1.0001), v0 + (v1 - v0) * v)
+        if stone:
+          loop[self.uv].uv = (u * eu / STONE_TILE, v * ev / STONE_TILE)
+        else:
+          loop[self.uv].uv = (u0 + (u1 - u0) * (u % 1.0001), v0 + (v1 - v0) * v)
       face.smooth = smooth
+      face.material_index = 1 if stone else 0
     bmesh.ops.transform(self.bm, matrix=matrix, verts=verts)
 
   def cylinder(self, region: str, radius: float, length: float, at, rotation=Matrix.Identity(4),
@@ -148,7 +160,10 @@ class Model:
         return (0.5 + co.x / (2 * r), 0.5 + co.y / (2 * r))
       return ((math.atan2(co.y, co.x) / (2 * math.pi)) % 1.0, co.z / length + 0.5)
 
-    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, smooth, mapping)
+    def extent(normal: Vector):
+      return (2 * r, 2 * r) if abs(normal.z) > 0.9 else (2 * math.pi * r, length)
+
+    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, smooth, mapping, extent)
 
   def box(self, region: str, size, at, rotation=Matrix.Identity(4)) -> None:
     """A box of size (x, y, z) centred on `at`, flat shaded, mapped per face along its long side."""
@@ -165,13 +180,22 @@ class Model:
       a, b = sorted(axes, key=lambda k: size[k])
       return (co[a] / size[a] + 0.5, co[b] / size[b] + 0.5)
 
-    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, False, mapping)
+    def extent(normal: Vector):
+      n = [abs(normal.x), abs(normal.y), abs(normal.z)]
+      axes = [a for a in range(3) if a != n.index(max(n))]
+      a, b = sorted(axes, key=lambda k: size[k])
+      return (size[a], size[b])
+
+    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, False, mapping, extent)
 
   def to_object(self, name: str) -> bpy.types.Object:
     bmesh.ops.triangulate(self.bm, faces=self.bm.faces)
     mesh = bpy.data.meshes.new(name)
     self.bm.to_mesh(mesh)
     self.bm.free()
+    # Two slots, so the OBJ gets one group per material; the names are what the loader reads.
+    mesh.materials.append(bpy.data.materials.get("atlas") or bpy.data.materials.new("atlas"))
+    mesh.materials.append(bpy.data.materials.get("stone") or bpy.data.materials.new("stone"))
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     return obj
@@ -243,13 +267,43 @@ def export(obj: bpy.types.Object, path: Path) -> None:
   bpy.context.view_layer.objects.active = obj
   bpy.ops.wm.obj_export(
     filepath=str(path), export_selected_objects=True, forward_axis="NEGATIVE_Z", up_axis="Y",
-    export_uv=True, export_normals=True, export_materials=False, export_triangulated_mesh=True,
+    export_uv=True, export_normals=True, export_materials=True, export_triangulated_mesh=True,
     apply_modifiers=True,
   )
+  # Only the "usemtl" groups matter; the plugin takes the materials from the game, so the .mtl and the
+  # line pointing to it go.
+  path.with_suffix(".mtl").unlink(missing_ok=True)
+  lines = path.read_text().splitlines(keepends=True)
+  path.write_text("".join(line for line in lines if not line.startswith("mtllib ")))
+
+
+def stone_material(name: str) -> bpy.types.Material:
+  """A grey, mottled stand-in for the game's stone in previews and icons. The game's own texture
+  isn't used for renders: Iron Gate's art stays out of the repository and its files."""
+  mat = bpy.data.materials.new(name)
+  nodes = mat.node_tree.nodes
+  noise = nodes.new("ShaderNodeTexNoise")
+  noise.inputs["Scale"].default_value = 6.0
+  noise.inputs["Detail"].default_value = 8.0
+  ramp = nodes.new("ShaderNodeValToRGB")
+  # Linear colours: about #3a3d40 to #6e6d6a on screen, the dark grey of the game's knapped stone.
+  ramp.color_ramp.elements[0].color = (0.04, 0.045, 0.05, 1)
+  ramp.color_ramp.elements[1].color = (0.155, 0.15, 0.14, 1)
+  bsdf = nodes["Principled BSDF"]
+  bsdf.inputs["Roughness"].default_value = 0.85
+  mat.node_tree.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+  mat.node_tree.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+  return mat
+
+
+def assign(objects, atlas_material: bpy.types.Material, stone: bpy.types.Material) -> None:
+  for obj in objects:
+    obj.data.materials[0] = atlas_material
+    obj.data.materials[1] = stone
 
 
 def preview_material(atlas: bpy.types.Image) -> bpy.types.Material:
-  mat = bpy.data.materials.new("atlas")
+  mat = bpy.data.materials.new("preview-atlas")
   nodes = mat.node_tree.nodes
   tex = nodes.new("ShaderNodeTexImage")
   tex.image = atlas
@@ -306,10 +360,7 @@ def render_previews(objects: list[bpy.types.Object], atlas: bpy.types.Image, fol
   scene.collection.objects.link(camera)
   scene.camera = camera
 
-  material = preview_material(atlas)
-  for obj in objects:
-    obj.data.materials.clear()
-    obj.data.materials.append(material)
+  assign(objects, preview_material(atlas), stone_material("preview-stone"))
 
   for obj in objects:
     for other in objects:
@@ -386,10 +437,7 @@ def render_icons(objects: list[bpy.types.Object], atlas: bpy.types.Image, folder
     scene.collection.objects.link(obj)
   scene.camera = camera
 
-  material = icon_material(atlas)
-  for obj in objects:
-    obj.data.materials.clear()
-    obj.data.materials.append(material)
+  assign(objects, icon_material(atlas), stone_material("icon-stone"))
 
   for obj in objects:
     for other in objects:

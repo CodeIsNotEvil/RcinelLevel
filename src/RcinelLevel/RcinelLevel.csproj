@@ -53,6 +53,11 @@
       <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'Unity.InputSystem.dll'))</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- TextMeshPro, for the HUD's texts the build-box patch looks at. A package too. -->
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'Unity.TextMeshPro.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- uGUI is a Unity package, not a module, so it isn't in UnityEngine.Modules. -->
     <Reference Include="UnityEngine.UI">
       <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'UnityEngine.UI.dll'))</HintPath>

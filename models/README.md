@@ -23,8 +23,12 @@ Conventions the plugin's loader relies on (also in the script's docstring):
 
 - Metres. The OBJ is Y-up with -Z forward; Unity is left-handed, so the loader mirrors X.
 - The origin is where the hand holds the tool; its length runs along +Y in the OBJ.
-- One mesh, one material, triangles with normals and UVs into the atlas. The plugin puts the atlas
-  on a material copied from a game item, so light and shading match Valheim.
+- One mesh, two OBJ groups: `usemtl atlas` (wood, leather, resin; UVs into the atlas, which the
+  plugin puts on a copy of the game hoe's wood material) and `usemtl stone` (the flint blade and
+  point; UVs in metres / 0.3, drawn with the game hoe's own stone material). The `.mtl` file isn't
+  written: the materials come from the game.
+- Previews and icons draw the stone with a procedural grey stand-in, never the game's texture, so no
+  Iron Gate art ends up in the repository.
 - The texture is drawn with numpy from fixed seeds, so every run gives the same picture.
 
 The previews use nearest-neighbour texture filtering to show the texels as coarse as they are; the

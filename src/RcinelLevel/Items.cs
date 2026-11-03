@@ -67,7 +67,7 @@ internal static class Items
     PrefabManager.OnVanillaPrefabsAvailable -= Create;
     try
     {
-      var material = MakeMaterial();
+      var material = MakeMaterials();
       CreateTiles();
       MeasureStoneCost();
       CreateProbe(material);
@@ -87,19 +87,34 @@ internal static class Items
   }
 
   /// <summary>
-  /// A copy of the game hoe's material with our atlas, so light, fog and shading match the game's own
-  /// tools. Its other maps (normal, metal) belong to the game's texture and are dropped.
+  /// The models' two materials (the OBJ's groups): a copy of the game hoe's wood material with our
+  /// atlas, and the game hoe's own stone material for the flint blade and point, so light, fog and
+  /// shading match the game's tools and the stone looks like the game hoe's blade (owner, 2026-11-03).
   /// </summary>
-  private static Material? MakeMaterial()
+  /// <remarks>
+  /// The hoe's wood material stretches and flips its texture (<c>_MainTex</c> scale 1 × -0.62, read from
+  /// the game's files): copied as it was, it showed the atlas's resin corner on the blade, which came
+  /// out yellow in the owner's test. The copy's tiling is reset; its other maps (normal, metal) belong
+  /// to the game's texture and are dropped.
+  /// </remarks>
+  private static Material[]? MakeMaterials()
   {
-    var renderer = PrefabManager.Instance.GetPrefab("Hoe")?.transform.Find("attach/visual/handle")?.GetComponent<MeshRenderer>();
-    if (renderer is null || _atlas is null)
+    var visual = PrefabManager.Instance.GetPrefab("Hoe")?.transform.Find("attach/visual");
+    var wood = visual?.Find("handle")?.GetComponent<MeshRenderer>();
+    var stone = visual?.Find("blade")?.GetComponent<MeshRenderer>();
+    if (wood is null || stone is null || _atlas is null)
     {
-      _logger.LogWarning("No material for the models (game hoe or atlas missing); the game's own models stay.");
+      _logger.LogWarning("No materials for the models (game hoe or atlas missing); the game's own models stay.");
       return null;
     }
 
-    var material = new Material(renderer.sharedMaterial) { name = "rcinellevel_atlas", mainTexture = _atlas };
+    var material = new Material(wood.sharedMaterial)
+    {
+      name = "rcinellevel_atlas",
+      mainTexture = _atlas,
+      mainTextureScale = Vector2.one,
+      mainTextureOffset = Vector2.zero,
+    };
     foreach (var map in new[] { "_BumpMap", "_MetallicGlossMap", "_EmissionMap", "_DetailAlbedoMap", "_DetailNormalMap" })
     {
       if (material.HasProperty(map))
@@ -113,7 +128,7 @@ internal static class Items
       material.color = Color.white;
     }
 
-    return material;
+    return [material, stone.sharedMaterial];
   }
 
   private static void CreateTiles()
@@ -213,7 +228,7 @@ internal static class Items
     _logger.LogWarning($"The game's Raise ground wasn't found; the level hoe charges {Stroke.StonePerCubicMetre} stone per m³.");
   }
 
-  private static void CreateProbe(Material? material)
+  private static void CreateProbe(Material[]? material)
   {
     var item = new CustomItem(ProbePrefab, "Torch", new ItemConfig
     {
@@ -279,7 +294,7 @@ internal static class Items
     PieceManager.Instance.AddPiece(piece);
   }
 
-  private static void CreateHoe(Material? material)
+  private static void CreateHoe(Material[]? material)
   {
     var item = new CustomItem(HoePrefab, "Hoe", new ItemConfig
     {
@@ -288,9 +303,10 @@ internal static class Items
       CraftingStation = CraftingStations.Workbench,
       Requirements =
       [
-        new RequirementConfig("Hoe", 1, recover: false),
-        new RequirementConfig("Flint", 4),
-        new RequirementConfig("LeatherScraps", 2),
+        // Upgrades (three, decision 0019) cost flint and leather again, not another hoe.
+        new RequirementConfig("Hoe", 1, amountPerLevel: 0, recover: false),
+        new RequirementConfig("Flint", 4, amountPerLevel: 2),
+        new RequirementConfig("LeatherScraps", 2, amountPerLevel: 1),
       ],
       Icons = _hoeIcon is null ? null : [_hoeIcon],
     });
@@ -304,12 +320,17 @@ internal static class Items
     ReplaceModel(visual, null, _hoeMesh, material, _settings.HoePosition.Value, _settings.HoeRotation.Value);
 
     var table = PieceManager.Instance.GetPieceTable(PieceTableName);
-    item.ItemDrop.m_itemData.m_shared.m_buildPieces = table;
+    var shared = item.ItemDrop.m_itemData.m_shared;
+    shared.m_buildPieces = table;
+    // Upgradeable three times at the workbench (levels 2 to 4), each adding durability like the game's
+    // own tools do; the game takes the workbench level a quality needs from the recipe.
+    shared.m_maxQuality = 4;
+    shared.m_durabilityPerLevel = 50f;
     ItemManager.Instance.AddItem(item);
   }
 
   /// <summary>Hides the game's model and puts ours under <paramref name="parent"/>.</summary>
-  private static void ReplaceModel(Transform? parent, Transform? old, Mesh? mesh, Material? material, Vector3 position, Vector3 rotation)
+  private static void ReplaceModel(Transform? parent, Transform? old, Mesh? mesh, Material[]? material, Vector3 position, Vector3 rotation)
   {
     if (parent is null || mesh is null || material is null)
     {
@@ -323,7 +344,7 @@ internal static class Items
     model.transform.localPosition = position;
     model.transform.localEulerAngles = rotation;
     model.AddComponent<MeshFilter>().sharedMesh = mesh;
-    model.AddComponent<MeshRenderer>().sharedMaterial = material;
+    model.AddComponent<MeshRenderer>().sharedMaterials = material;
   }
 
   /// <summary>

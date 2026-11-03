@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using HarmonyLib;
+using UnityEngine;
 
 namespace Rcinel.Level;
 
@@ -132,4 +134,51 @@ internal static class NoBuildMenuPatch
 {
   private static bool Prefix(Player __instance) =>
     __instance != Player.m_localPlayer || !Items.IsLevelHoe(__instance.GetRightItem());
+}
+
+/// <summary>
+/// Hides the build HUD's piece box (name, description, icon, cost) while the level hoe is held: with
+/// one piece it only repeats what the readout says (owner, 2026-11-03). Everything else of the build
+/// HUD stays, and the box comes back for every other build tool.
+/// </summary>
+/// <remarks>
+/// The box is found at run time as the smallest part of the HUD that holds the piece's name, its
+/// description and its icon. If that would also hold the piece menu, only those three are hidden.
+/// </remarks>
+[HarmonyPatch(typeof(Hud), nameof(Hud.UpdateBuild))]
+internal static class NoPieceBoxPatch
+{
+  private static GameObject[]? _hidden;
+
+  private static void Postfix(Hud __instance, Player player)
+  {
+    var hide = player == Player.m_localPlayer && Items.IsLevelHoe(player.GetRightItem()) && player.InPlaceMode();
+    foreach (var part in _hidden ??= Find(__instance))
+    {
+      if (part != null && part.activeSelf == hide)
+      {
+        part.SetActive(!hide);
+      }
+    }
+  }
+
+  private static GameObject[] Find(Hud hud)
+  {
+    var parts = new[] { hud.m_buildSelection.transform, hud.m_pieceDescription.transform, hud.m_buildIcon.transform };
+    var box = parts[0].parent;
+    while (box != null && box != hud.m_buildHud.transform && !(parts[1].IsChildOf(box) && parts[2].IsChildOf(box)))
+    {
+      box = box.parent;
+    }
+
+    var menu = hud.m_pieceSelectionWindow != null ? hud.m_pieceSelectionWindow.transform : null;
+    if (box == null || box == hud.m_buildHud.transform || (menu != null && menu.IsChildOf(box)))
+    {
+      var single = new List<GameObject> { parts[0].gameObject, parts[1].gameObject, parts[2].gameObject };
+      single.AddRange(hud.m_requirementItems);
+      return single.ToArray();
+    }
+
+    return [box.gameObject];
+  }
 }
