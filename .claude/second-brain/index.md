@@ -29,3 +29,14 @@ status: active
 - [[0010-area-shapes-and-scroll]]: circle, square or rectangle, scroll to resize; height also by hand
 - [[0011-model-designs]]: a soil-probe rod and a screed-board hoe with square end walls
 - [[0012-controls]]: the probe picks the shape; modifier + scroll resizes and sets the height
+- [[0013-off-hand-through-a-patch]]: the probe (a torch clone as a left-hand shield) and the level hoe share the hands
+- [[0014-hoe-levels-a-brush-inside-the-frame]]: the hoe levels a brush where you aim, inside the frame, to the target fixed at pinning
+- [[0015-hoe-only-fills-and-costs-stone]]: the level hoe only raises, paid in stone at Raise ground's rate
+- [[0016-pickaxe-depth-lock]]: a lock keeps the pickaxe inside the frame and above the target
+- [[0017-icons-rendered-from-the-models]]: item icons are Valheim-style renders of the models
+- [[0018-red-overlay-for-unreachable-ground]]: the probe shows ground beyond the ±8 m limit in red
+- [[0019-level-hoe-upgrades]]: the level hoe upgrades three times, for durability
+- [[0020-hints-in-the-key-bar-and-frame-kept-per-world]]: controls in the key hint bar; the frame kept per world with the character
+- [[0021-dev-commands]]: `rcinellevel_nostone` and `rcinellevel_dig`, cheats for the session only
+- [[0022-moat-for-a-drawbridge]]: a moat around the frame, 4 m (Rustic) or 8 m (Drawbridge) wide, 3 m deep
+- [[0023-first-release-built-locally-uploaded-by-hand]]: `scripts/package.py` locally, the owner uploads to Thunderstore

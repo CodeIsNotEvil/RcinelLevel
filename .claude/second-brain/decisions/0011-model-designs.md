@@ -31,3 +31,21 @@ the game. The owner hasn't seen the models in the game yet; the previews in
 `assets/models/previews/` are what they were judged by.
 
 Related: [[0009-blender-models-loaded-at-runtime]], [[0007-recipes]], [[rcinellevel]]
+
+**Hoe redesigned 2026-11-03**: the owner wanted the head "attached straight like a spade or a shovel".
+It is now a square-mouth shovel: the flint blade continues the haft, with raised flint side walls and
+a wooden straightedge across its back. Icons: [[0017-icons-rendered-from-the-models]].
+
+**Hoe turned over 2026-11-03**: the owner saw it upside down in the hand. The default rotation went
+from (-90, 0, 180) to (90, 0, 180), end over end about the grip. If the blade then faces the wrong
+way, (90, 0, 0) turns it about the handle instead; both are config values that apply while playing.
+
+**And back, 2026-11-03**: turned end over end, the whole tool pointed backwards from the hand
+(owner's screenshot), so the first direction was right and only the blade was upside down. The half
+turn belongs about the handle: the default is now (90, 0, 0).
+
+**Stone from the game (2026-11-03)**: in the game the blade showed bright yellow. The game hoe's wood
+material, which ours was copied from, tiles its texture 1 × -0.62 (read from the game's files with
+UnityPy), so our atlas was flipped and the resin corner landed on the flint. The copy's tiling is reset
+now, and the flint parts are a second OBJ group drawn with the game hoe's own stone material, as the
+owner wanted the blade to look like the game's stone.

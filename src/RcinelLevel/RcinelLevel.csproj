@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RcinelLevel's BepInEx plugin. It runs inside Valheim on Unity's Mono, hence .NET Framework.
+
+    BepInEx, Unity and Jotunn are compile-time references only: BepInExPack and Jotunn's own package
+    bring the real ones into the game. Valheim's assemblies come from the local install
+    ($(ValheimManaged), see Directory.Build.props) and are publicized into obj/, so the plugin can
+    use the game's private members; nothing is written into the game folder (JotunnLib's own build
+    props would put publicized copies there, so its build assets are excluded) and nothing of Iron
+    Gate's is ever copied into the output.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>RcinelLevel</AssemblyName>
+    <RootNamespace>Rcinel.Level</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Publicized members are accessed as if public; Mono doesn't check access for them at run time. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>portable</DebugType>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" ExcludeAssets="runtime" />
+    <!-- Valheim's Unity version (UnityPlayer.so says 6000.0.75f1). -->
+    <PackageReference Include="UnityEngine.Modules" Version="6000.0.75" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="JotunnLib" Version="2.30.2" PrivateAssets="all" ExcludeAssets="build;runtime" />
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+    <!-- .NET Framework reference assemblies, so it builds on Linux without Mono. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="assembly_valheim" Publicize="true">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'assembly_valheim.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_utils" Publicize="true">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'assembly_utils.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_guiutils">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'assembly_guiutils.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Unity's Input System, for keys that follow the player's keyboard layout (Keys.cs). A package too. -->
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'Unity.InputSystem.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- TextMeshPro, for the HUD's texts the build-box patch looks at. A package too. -->
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'Unity.TextMeshPro.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- uGUI is a Unity package, not a module, so it isn't in UnityEngine.Modules. -->
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'UnityEngine.UI.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CheckValheimInstall" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ValheimManaged)')" Text="Valheim wasn't found at $(ValheimInstall). Copy Environment.props.example to Environment.props and set ValheimInstall." />
+  </Target>
+
+  <!--
+    The plugin's own files, laid out as the plugin expects them next to its DLL (Assets.cs). The same
+    layout goes into the Thunderstore package later.
+  -->
+  <ItemGroup>
+    <PluginModel Include="$(MSBuildThisFileDirectory)..\..\assets\models\probe.obj;$(MSBuildThisFileDirectory)..\..\assets\models\level-hoe.obj;$(MSBuildThisFileDirectory)..\..\assets\models\atlas.png" />
+    <PluginIcon Include="$(MSBuildThisFileDirectory)..\..\assets\items\probe-128.png;$(MSBuildThisFileDirectory)..\..\assets\items\level-hoe-128.png" />
+  </ItemGroup>
+
+  <!--
+    With TestInstance set (Environment.props), every build copies the plugin into that LaunchHeim
+    instance. The folder isn't named like the Thunderstore package (CodeIsNotEvil-RcinelLevel), so a later
+    install from Thunderstore can't mix with a dev build; LaunchHeim leaves folders it didn't install alone.
+  -->
+  <Target Name="CopyToTestInstance" AfterTargets="Build" Condition="'$(TestInstance)' != '' And Exists('$(TestInstance)')">
+    <PropertyGroup>
+      <DevPluginDirectory>$([System.IO.Path]::Combine($(TestInstance), 'BepInEx', 'plugins', 'RcinelLevel-dev'))</DevPluginDirectory>
+    </PropertyGroup>
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(DevPluginDirectory)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(PluginModel)" DestinationFolder="$([System.IO.Path]::Combine($(DevPluginDirectory), 'models'))" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(PluginIcon)" DestinationFolder="$([System.IO.Path]::Combine($(DevPluginDirectory), 'icons'))" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="RcinelLevel copied to $(DevPluginDirectory)" />
+  </Target>
+
+</Project>

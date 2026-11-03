@@ -1,0 +1,18 @@
+<Project>
+  <!--
+    Machine-specific paths (the game, the LaunchHeim test instance) live in Environment.props, which
+    is gitignored; Environment.props.example shows what goes in it. Without one, the game is looked for
+    in Steam's default library.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Environment.props" Condition="Exists('$(MSBuildThisFileDirectory)Environment.props')" />
+
+  <PropertyGroup>
+    <!--
+      The release version. RcinelLevelPlugin.Version must match it (BepInEx reads the version from the
+      attribute, which needs a constant), and CHANGELOG.md needs a section for it before a release.
+    -->
+    <Version>0.1.0</Version>
+    <ValheimInstall Condition="'$(ValheimInstall)' == ''">$([System.IO.Path]::Combine($(HOME), '.steam', 'steam', 'steamapps', 'common', 'Valheim'))</ValheimInstall>
+    <ValheimManaged>$([System.IO.Path]::Combine($(ValheimInstall), 'valheim_Data', 'Managed'))</ValheimManaged>
+  </PropertyGroup>
+</Project>

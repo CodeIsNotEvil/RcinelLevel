@@ -1,11 +1,12 @@
 """Build RcinelLevel's models in Blender, export them, and render previews.
 
-  blender -b --factory-startup --python models/build.py -- [--previews]
+  blender -b --factory-startup --python models/build.py -- [--previews] [--icons]
 
 Run from the repository root. Writes, under assets/models/:
   probe.obj, level-hoe.obj  the meshes the plugin loads at runtime (decision 0009)
   atlas.png                  the one texture both meshes are mapped onto
-  previews/*.png             renders to look at (only with --previews; slow, Cycles on the CPU)
+  previews/*.png             renders to look at (only with --previews; Cycles on the CPU)
+and, with --icons, the item icons assets/items/{probe,level-hoe}-{128,64}.png.
 
 This script is the source of the models. Change a model here and run it again; never edit the
 exported files by hand (the same rule as the icons, whose SVGs are the source).
@@ -15,9 +16,12 @@ Conventions the plugin's loader relies on:
   coordinates are left-handed, so the loader mirrors X when it reads the file.
 - The origin is where the hand holds the tool, and the tool's length runs along +Z (Y in the OBJ),
   head or handle up. How it sits in the hand is tuned in the game, at the attach point.
-- One mesh, one material, one texture: each part's UVs are fitted into its region of the atlas
-  (wood, flint, leather, resin). The plugin puts the atlas on a material copied from a game item, so
-  light and shading match Valheim. Triangles only, with normals.
+- One mesh with two materials, written as OBJ groups (`usemtl atlas`, `usemtl stone`). The atlas
+  parts (wood, leather, resin) have their UVs fitted into their region of the atlas, and the plugin
+  puts the atlas on a copy of the game hoe's wood material. The stone parts (the flint blade and
+  point) use the game hoe's own stone material, a tiling texture, so their UVs are in metres / 0.3,
+  the density of the game hoe's blade. The owner wanted the blade to look like the game's stone
+  (2026-11-03). Triangles only, with normals.
 
 The texture is drawn here with numpy rather than painted, so it rebuilds the same every time (fixed
 seeds). It is deliberately small and coarse, like Valheim's own hand-painted textures.
@@ -39,6 +43,8 @@ ATLAS_SIZE = 256
 # Atlas regions as (u0, v0, u1, v1). A margin keeps bilinear filtering and mipmaps from bleeding one
 # material into its neighbour at the region's edge.
 MARGIN = 6 / ATLAS_SIZE
+# Metres per repeat of the game's stone texture on the stone parts, the density of the game hoe's blade.
+STONE_TILE = 0.3
 REGIONS = {
   "wood": (0.0, 0.5, 0.5, 1.0),
   "flint": (0.5, 0.5, 1.0, 1.0),
@@ -118,7 +124,9 @@ class Model:
     self.bm = bmesh.new()
     self.uv = self.bm.loops.layers.uv.new("UVMap")
 
-  def _place(self, faces, verts, region: str, matrix: Matrix, smooth: bool, mapping) -> None:
+  def _place(self, faces, verts, region: str, matrix: Matrix, smooth: bool, mapping, extent) -> None:
+    """`mapping` gives each corner 0..1 across the face; `extent` is that span in metres (u, v)."""
+    stone = region == "flint"
     u0, v0, u1, v1 = REGIONS[region]
     u0, v0, u1, v1 = u0 + MARGIN, v0 + MARGIN, u1 - MARGIN, v1 - MARGIN
     for face in faces:
@@ -127,9 +135,14 @@ class Model:
       us = [c[0] for c in coords]
       if max(us) - min(us) > 0.5:
         coords = [(c[0] + 1 if c[0] < 0.5 else c[0], c[1]) for c in coords]
+      eu, ev = extent(face.normal)
       for loop, (u, v) in zip(face.loops, coords):
-        loop[self.uv].uv = (u0 + (u1 - u0) * (u % 1.0001), v0 + (v1 - v0) * v)
+        if stone:
+          loop[self.uv].uv = (u * eu / STONE_TILE, v * ev / STONE_TILE)
+        else:
+          loop[self.uv].uv = (u0 + (u1 - u0) * (u % 1.0001), v0 + (v1 - v0) * v)
       face.smooth = smooth
+      face.material_index = 1 if stone else 0
     bmesh.ops.transform(self.bm, matrix=matrix, verts=verts)
 
   def cylinder(self, region: str, radius: float, length: float, at, rotation=Matrix.Identity(4),
@@ -147,7 +160,10 @@ class Model:
         return (0.5 + co.x / (2 * r), 0.5 + co.y / (2 * r))
       return ((math.atan2(co.y, co.x) / (2 * math.pi)) % 1.0, co.z / length + 0.5)
 
-    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, smooth, mapping)
+    def extent(normal: Vector):
+      return (2 * r, 2 * r) if abs(normal.z) > 0.9 else (2 * math.pi * r, length)
+
+    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, smooth, mapping, extent)
 
   def box(self, region: str, size, at, rotation=Matrix.Identity(4)) -> None:
     """A box of size (x, y, z) centred on `at`, flat shaded, mapped per face along its long side."""
@@ -164,13 +180,22 @@ class Model:
       a, b = sorted(axes, key=lambda k: size[k])
       return (co[a] / size[a] + 0.5, co[b] / size[b] + 0.5)
 
-    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, False, mapping)
+    def extent(normal: Vector):
+      n = [abs(normal.x), abs(normal.y), abs(normal.z)]
+      axes = [a for a in range(3) if a != n.index(max(n))]
+      a, b = sorted(axes, key=lambda k: size[k])
+      return (size[a], size[b])
+
+    self._place(faces, result["verts"], region, Matrix.Translation(at) @ rotation, False, mapping, extent)
 
   def to_object(self, name: str) -> bpy.types.Object:
     bmesh.ops.triangulate(self.bm, faces=self.bm.faces)
     mesh = bpy.data.meshes.new(name)
     self.bm.to_mesh(mesh)
     self.bm.free()
+    # Two slots, so the OBJ gets one group per material; the names are what the loader reads.
+    mesh.materials.append(bpy.data.materials.get("atlas") or bpy.data.materials.new("atlas"))
+    mesh.materials.append(bpy.data.materials.get("stone") or bpy.data.materials.new("stone"))
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     return obj
@@ -205,29 +230,32 @@ def build_probe() -> bpy.types.Object:
 
 
 def build_level_hoe() -> bpy.types.Object:
-  """A square-scoop hoe: the head is a flint floor with a dead-straight front edge, two flint side
-  walls and a wooden straightedge as the back wall, all at right angles, so the tool looks like the
-  90-degree cuts it makes. The flint and leather are what the recipe adds to the game's hoe
-  (decision 0007). Held near the lower end like the game's hoe; about 1.35 m long."""
+  """A square-mouth shovel: the flint blade continues the handle in a straight line, like a spade's,
+  with two raised flint side walls and a wooden straightedge across its back, so the head is an open
+  square channel with a dead-straight front edge: the 90-degree cuts it makes. The owner asked for the
+  head "attached straight like a spade or a shovel" (2026-11-03); the first version's head stood
+  across the handle like a hoe's. The flint and leather are what the recipe adds to the game's hoe
+  (decision 0007). Held near the lower end; about 1.5 m long."""
   m = Model()
-  low, high = -0.18, 1.08
+  low, high = -0.18, 0.98
   m.cylinder("wood", 0.022, high - low, (0, 0, (low + high) / 2), segments=8)
   m.cylinder("leather", 0.026, 0.28, (0, 0, 0.0), segments=8)
   m.cylinder("resin", 0.024, 0.03, (0, 0, low + 0.02), segments=8)
-  # The head sits on the end of the handle: the floor is perpendicular to the handle like a hoe's
-  # blade, and its straight edge points away from the handle's side (+Y).
-  floor = high + 0.012
-  width, depth, wall = 0.50, 0.22, 0.09
-  # Back wall: the wooden straightedge, lashed to the handle's end on both sides.
-  m.box("wood", (width + 0.06, 0.05, wall + 0.02), (0, 0.0, floor + wall / 2))
-  for x in (-0.07, 0.07):
-    m.box("leather", (0.035, 0.065, wall + 0.035), (x, 0.0, floor + wall / 2))
-  # Floor: the blade, with a thinner strip as its sharpened straight edge.
-  m.box("flint", (width, depth, 0.024), (0, depth / 2 + 0.02, floor))
-  m.box("flint", (width, 0.03, 0.012), (0, depth + 0.035, floor))
-  # Side walls: the square corners.
-  for x in (-(width / 2 + 0.011), width / 2 + 0.011):
-    m.box("flint", (0.022, depth, wall), (x, depth / 2 + 0.02, floor + wall / 2 - 0.012))
+  # The handle ends in a wooden socket, lashed with leather, that holds the blade.
+  m.box("wood", (0.09, 0.05, 0.12), (0, 0, high + 0.02))
+  m.box("leather", (0.10, 0.06, 0.04), (0, 0, high - 0.01))
+  # The blade lies in the handle's plane (X-Z) and runs on along +Z.
+  width, length, wall = 0.30, 0.32, 0.07
+  base = high + 0.08
+  m.box("flint", (width, 0.022, length), (0, 0, base + length / 2))
+  m.box("flint", (width, 0.012, 0.03), (0, 0, base + length + 0.012))
+  # Side walls rise on the front face (+Y): the square corners.
+  for x in (-(width / 2 + 0.01), width / 2 + 0.01):
+    m.box("flint", (0.02, wall, length), (x, wall / 2 - 0.011, base + length / 2))
+  # Back wall: the straightedge across the blade's root, bound to the socket.
+  m.box("wood", (width + 0.06, wall, 0.045), (0, wall / 2 - 0.011, base + 0.01))
+  for x in (-0.09, 0.09):
+    m.box("leather", (0.03, wall + 0.012, 0.06), (x, wall / 2 - 0.011, base + 0.01))
   return m.to_object("level-hoe")
 
 
@@ -239,13 +267,43 @@ def export(obj: bpy.types.Object, path: Path) -> None:
   bpy.context.view_layer.objects.active = obj
   bpy.ops.wm.obj_export(
     filepath=str(path), export_selected_objects=True, forward_axis="NEGATIVE_Z", up_axis="Y",
-    export_uv=True, export_normals=True, export_materials=False, export_triangulated_mesh=True,
+    export_uv=True, export_normals=True, export_materials=True, export_triangulated_mesh=True,
     apply_modifiers=True,
   )
+  # Only the "usemtl" groups matter; the plugin takes the materials from the game, so the .mtl and the
+  # line pointing to it go.
+  path.with_suffix(".mtl").unlink(missing_ok=True)
+  lines = path.read_text().splitlines(keepends=True)
+  path.write_text("".join(line for line in lines if not line.startswith("mtllib ")))
+
+
+def stone_material(name: str) -> bpy.types.Material:
+  """A grey, mottled stand-in for the game's stone in previews and icons. The game's own texture
+  isn't used for renders: Iron Gate's art stays out of the repository and its files."""
+  mat = bpy.data.materials.new(name)
+  nodes = mat.node_tree.nodes
+  noise = nodes.new("ShaderNodeTexNoise")
+  noise.inputs["Scale"].default_value = 6.0
+  noise.inputs["Detail"].default_value = 8.0
+  ramp = nodes.new("ShaderNodeValToRGB")
+  # Linear colours: about #3a3d40 to #6e6d6a on screen, the dark grey of the game's knapped stone.
+  ramp.color_ramp.elements[0].color = (0.04, 0.045, 0.05, 1)
+  ramp.color_ramp.elements[1].color = (0.155, 0.15, 0.14, 1)
+  bsdf = nodes["Principled BSDF"]
+  bsdf.inputs["Roughness"].default_value = 0.85
+  mat.node_tree.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+  mat.node_tree.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+  return mat
+
+
+def assign(objects, atlas_material: bpy.types.Material, stone: bpy.types.Material) -> None:
+  for obj in objects:
+    obj.data.materials[0] = atlas_material
+    obj.data.materials[1] = stone
 
 
 def preview_material(atlas: bpy.types.Image) -> bpy.types.Material:
-  mat = bpy.data.materials.new("atlas")
+  mat = bpy.data.materials.new("preview-atlas")
   nodes = mat.node_tree.nodes
   tex = nodes.new("ShaderNodeTexImage")
   tex.image = atlas
@@ -302,10 +360,7 @@ def render_previews(objects: list[bpy.types.Object], atlas: bpy.types.Image, fol
   scene.collection.objects.link(camera)
   scene.camera = camera
 
-  material = preview_material(atlas)
-  for obj in objects:
-    obj.data.materials.clear()
-    obj.data.materials.append(material)
+  assign(objects, preview_material(atlas), stone_material("preview-stone"))
 
   for obj in objects:
     for other in objects:
@@ -340,6 +395,118 @@ def look(camera: bpy.types.Object, target: Vector, distance: float, height: floa
   camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
 
 
+# --- Item icons ------------------------------------------------------------------------------------
+
+def render_icons(objects: list[bpy.types.Object], atlas: bpy.types.Image, folder: Path) -> None:
+  """Item icons in the manner of Valheim's own: the item itself, lying diagonally from bottom left to
+  top right with its head up, lit warm from the top left, on a transparent background with a soft
+  dark rim. The owner found the first, flat orange icons "too techy for the Valheim theme"
+  (2026-11-03); rendering the models keeps icon and item the same thing.
+
+  Rendered at 512 px and scaled down here, with the rim added in numpy, so it is the same every run.
+  """
+  scene = bpy.context.scene
+  scene.render.engine = "CYCLES"
+  scene.cycles.device = "CPU"
+  scene.cycles.samples = 64
+  scene.cycles.use_denoising = True
+  scene.render.film_transparent = True
+  scene.render.resolution_x = scene.render.resolution_y = 512
+  scene.view_settings.view_transform = "Standard"
+  scene.render.image_settings.compression = 100
+  scene.render.image_settings.color_mode = "RGBA"
+  world = bpy.data.worlds.new("icon-world")
+  world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.35, 0.3, 0.25, 1)
+  world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.6
+  scene.world = world
+
+  for obj in list(scene.objects):
+    if obj.type in {"LIGHT", "CAMERA"} or obj.name == "figure":
+      obj.hide_render = True
+  key = bpy.data.objects.new("icon-key", bpy.data.lights.new("icon-key", "SUN"))
+  key.data.energy = 4.5
+  key.data.color = (1.0, 0.92, 0.8)
+  key.rotation_euler = (math.radians(40), math.radians(-30), 0)
+  rim = bpy.data.objects.new("icon-rim", bpy.data.lights.new("icon-rim", "SUN"))
+  rim.data.energy = 2.0
+  rim.data.color = (0.75, 0.85, 1.0)
+  rim.rotation_euler = (math.radians(-60), math.radians(40), 0)
+  camera = bpy.data.objects.new("icon-camera", bpy.data.cameras.new("icon-camera"))
+  camera.data.type = "ORTHO"
+  for obj in (key, rim, camera):
+    scene.collection.objects.link(obj)
+  scene.camera = camera
+
+  assign(objects, icon_material(atlas), stone_material("icon-stone"))
+
+  for obj in objects:
+    for other in objects:
+      other.hide_render = other is not obj
+    # Turned about its own length so the front (the hoe's channel, +Y) faces the camera at an angle,
+    # tilted a little, then laid on the diagonal about the view axis: Z first, then X, then Y.
+    obj.location = (0, 0, 0)
+    obj.rotation_mode = "ZXY"
+    obj.rotation_euler = (math.radians(-15), math.radians(45), math.radians(150))
+    bpy.context.view_layer.update()
+    corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+    centre = sum(corners, Vector()) / 8
+    extent = max(max(c.x for c in corners) - min(c.x for c in corners), max(c.z for c in corners) - min(c.z for c in corners))
+    camera.data.ortho_scale = extent * 1.08
+    camera.location = centre + Vector((0, -5, 0))
+    camera.rotation_euler = (math.radians(90), 0, 0)
+    raw = folder / f"{obj.name}-raw.png"
+    scene.render.filepath = str(raw)
+    bpy.ops.render.render(write_still=True)
+    finish_icon(raw, folder, obj.name)
+    raw.unlink()
+    obj.rotation_euler = (0, 0, 0)
+    obj.rotation_mode = "XYZ"
+
+
+def icon_material(atlas: bpy.types.Image) -> bpy.types.Material:
+  mat = bpy.data.materials.new("icon-atlas")
+  nodes = mat.node_tree.nodes
+  tex = nodes.new("ShaderNodeTexImage")
+  tex.image = atlas
+  tex.interpolation = "Linear"
+  bsdf = nodes["Principled BSDF"]
+  bsdf.inputs["Roughness"].default_value = 0.75
+  mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+  return mat
+
+
+def finish_icon(raw: Path, folder: Path, name: str) -> None:
+  """Adds the soft dark rim and writes the 128 and 64 px icons."""
+  image = bpy.data.images.load(str(raw))
+  size = image.size[0]
+  pixels = np.array(image.pixels[:], dtype=np.float32).reshape(size, size, 4)
+  bpy.data.images.remove(image)
+  alpha = pixels[..., 3]
+  # The rim: the item's shape grown by a few pixels and softened, dark brown like Valheim's icon shadows.
+  grown = alpha.copy()
+  for _ in range(6):
+    grown = np.maximum.reduce([grown, np.roll(grown, 1, 0), np.roll(grown, -1, 0), np.roll(grown, 1, 1), np.roll(grown, -1, 1)])
+  for _ in range(3):
+    grown = (grown + np.roll(grown, 1, 0) + np.roll(grown, -1, 0) + np.roll(grown, 1, 1) + np.roll(grown, -1, 1)) / 5
+  rim = np.clip(grown, 0, 1) * 0.85
+  shadow = np.array([0.08, 0.05, 0.03], dtype=np.float32)
+  out_alpha = alpha + rim * (1 - alpha)
+  out_rgb = (pixels[..., :3] * alpha[..., None] + shadow * (rim * (1 - alpha))[..., None]) / np.maximum(out_alpha, 1e-6)[..., None]
+  icon = np.concatenate([out_rgb, out_alpha[..., None]], axis=2)
+  for target in (128, 64):
+    factor = size // target
+    # Average in premultiplied colour, so the transparent edge doesn't turn into a grey fringe.
+    pre = np.concatenate([icon[..., :3] * icon[..., 3:4], icon[..., 3:4]], axis=2)
+    small = pre.reshape(target, factor, target, factor, 4).mean(axis=(1, 3))
+    small[..., :3] /= np.maximum(small[..., 3:4], 1e-6)
+    out = bpy.data.images.new(f"{name}-{target}", target, target, alpha=True)
+    out.pixels.foreach_set(np.clip(small, 0, 1).astype(np.float32).ravel())
+    out.filepath_raw = str(folder / f"{name}-{target}.png")
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+
+
 def main() -> None:
   args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
   (OUT / "previews").mkdir(parents=True, exist_ok=True)
@@ -353,6 +520,8 @@ def main() -> None:
     print(f"{obj.name}: {len(obj.data.polygons)} triangles")
   if "--previews" in args:
     render_previews(models, atlas, OUT / "previews")
+  if "--icons" in args:
+    render_icons(models, atlas, ROOT / "assets" / "items")
 
 
 main()

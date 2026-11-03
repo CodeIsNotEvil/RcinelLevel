@@ -1,0 +1,9 @@
+<Project>
+  <!-- Copy to Environment.props (gitignored) and adjust. -->
+  <PropertyGroup>
+    <!-- The Valheim install whose assemblies the plugin compiles against. Never copied into the repo. -->
+    <ValheimInstall>/mnt/games/SteamLibrary/steamapps/common/Valheim</ValheimInstall>
+    <!-- Optional: a LaunchHeim instance; every build copies the plugin into its BepInEx/plugins/RcinelLevel-dev/. -->
+    <TestInstance>$(HOME)/.local/share/LaunchHeim/instances/test</TestInstance>
+  </PropertyGroup>
+</Project>

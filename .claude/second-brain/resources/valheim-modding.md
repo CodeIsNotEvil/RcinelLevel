@@ -30,9 +30,10 @@ says when it was found.
     build of RcinelLevel should get a folder of its own that isn't the Thunderstore name, so a later
     install from Thunderstore doesn't mix with it.
   - Seen 2026-11-03: MultiUserChest's manifest depends on `ValheimModding-Jotunn-2.30.0`, but Jotunn
-    is neither in `plugins/` nor in `instance.json`. Either LaunchHeim skipped the dependency or it
-    was removed by hand; worth a look in LaunchHeim. If RcinelLevel uses Jotunn, install it into the
-    instance before testing.
+    was neither in `plugins/` nor in `instance.json`. Later that day the owner installed Jotunn 2.30.2
+    through LaunchHeim and removed MultiUserChest.
+  - The dev build goes to `BepInEx/plugins/RcinelLevel-dev/` (the csproj's `CopyToTestInstance`).
+    LaunchHeim only deletes files it recorded for a mod, and its own `LaunchHeim/` folder.
 - Started directly (as LaunchHeim does), Valheim shows a black window if Steam isn't logged in.
   LaunchHeim starts Steam and waits for the login first (2026-09-30).
 
@@ -74,6 +75,60 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   files and test fixtures stay the same on every runner (2026-10-04).
 - **.NET's `Encoding.UTF8` writes a BOM.** Files other tools parse (Thunderstore's `manifest.json`)
   must be written without one (2026-09-26).
+- **Unity 6's ImageConversionModule needs netstandard 2.1**, which a net472 plugin can't reference
+  (CS1705). Load PNGs with Jotunn's `AssetUtils.LoadImage(texture, bytes)`, which calls
+  `ImageConversion.LoadImage` by reflection (2026-11-03).
+- **JotunnLib's NuGet build props write into the game folder**: with `ExecutePrebuild` they publicize
+  the game's assemblies into `valheim_Data/Managed/publicized_assemblies` and reference them from
+  there. RcinelLevel references JotunnLib with `ExcludeAssets="build;runtime"` and publicizes into
+  `obj/` with BepInEx.AssemblyPublicizer.MSBuild instead (2026-11-03).
+- **Valheim's default keys** (`ZInput`, assembly_utils): E use, R hide, Space jump, Left Ctrl crouch,
+  Left Shift run and AltPlace, C walk, Q autorun, X sit, F guardian power, V auto-pickup, Tab
+  inventory, M map, G radial menu, T emotes, F5 console, 1–8 hotbar. Read keys with
+  `ZInput.GetKey(KeyCode, logWarning: false)`; Valheim runs on Unity's new Input System (2026-11-03).
+- **Keys are physical positions.** `ZInput.GetKey(KeyCode)` reads `Keyboard.current[Key]`, and the
+  Input System's `Key` is a position on a US keyboard: `KeyCode.Y` is the key labelled Z on QWERTZ.
+  For letters, look the key up with `Keyboard.FindKeyOnCurrentKeyboardLayout("y")` (needs a reference
+  to the game's `Unity.InputSystem.dll`) (2026-11-03).
+- **BepInEx keeps saved config values over new defaults**: changing a default in code doesn't change
+  an existing config file; say so, or change the file, when a default moves (2026-11-03).
+- **The scroll wheel in build mode** turns the ghost only when the selected piece has `m_canRotate`;
+  otherwise the camera zooms (`GameCamera`). RcinelLevel hides the wheel from the game while a frame
+  modifier is held (`ScrollPatch`) (2026-11-03).
+- **Reading prefabs without Unity**: UnityPy (in a scratch venv) reads the game's asset bundles in
+  `valheim_Data/StreamingAssets/SoftRef/Bundles/`. The tools and pieces are in bundle `c4210710`;
+  hierarchies and transforms read fine, MonoBehaviour fields don't (no type trees), so a component's
+  settings are logged at run time instead (2026-11-03).
+- **MSBuild item metadata doesn't expand inside a property function**: `%(Folder)` inside
+  `$([System.IO.Path]::Combine(...))` in an item transform created a folder literally named
+  `%(Folder)`. One `Copy` per destination folder instead (2026-11-03).
+- **`mud_road_v2` is the hoe's path tool, not level ground**: the log showed `level False, smooth True,
+  paint Dirt` (2026-11-03). RcinelLevel only uses it as a base for its piece and tiles and overrides
+  every setting, so it didn't matter, but don't take the name for what it does.
+- **A pickaxe hit's terrain op is spawned on the attacker's client** (`Attack.SpawnOnHitTerrain`, after
+  the ward and no-build checks), so a prefix on `TerrainOp.Awake` sees it before it is sent on
+  (2026-11-03).
+- **Copied materials keep their texture tiling.** The game hoe's handle material tiles `_MainTex`
+  1 × -0.62; a copy with another texture keeps that unless `mainTextureScale`/`Offset` are reset.
+  UnityPy reads materials fully (they have type trees: `obj.object_reader.read_typetree()`), unlike
+  MonoBehaviours (2026-11-03).
+- **The build HUD's piece box is `BuildHud/SelectedInfo`** in `IngameGui_HUD.prefab` (bundle `d59cfac`):
+  a `Bkg2` background beside `selected_piece` (icon, name, description, snapping hint) and
+  `requirements`. The piece menu is `BuildHud/bar/SelectionWindow`. Hide the whole `SelectedInfo`, or
+  the empty background stays (2026-11-03).
+- **Key hint bar**: `KeyHints.m_buildHints` / `m_combatHints`; the keyboard hints are under
+  `BuildHints/Keyboard`, one child per hint (`Place`: label + `key_bkg/Key`; `Copy`: two keys with a
+  "+"; `rotate`: the mouse-wheel icon). Jotunn's `KeyHintManager` only uses a left-hand item if
+  `IsWeapon()`, which a shield isn't (2026-11-03).
+- **Clients know the world's uid**: the server sends name, seed, seed name and uid in the peer info, so
+  `ZNet.World.m_uid` works on clients; `ZNet.GetWorldUID()` reads the host's `m_world` (2026-11-03).
+- **`Player.m_customData`** is saved with the character (`Player.Save`) and read back on spawn: a place
+  for per-character mod state (2026-11-03).
+- **The build HUD's texts are TextMeshPro** (`Hud.m_buildSelection` is a `TMP_Text`); touching them
+  needs a reference to the game's `Unity.TextMeshPro.dll` (2026-11-03).
+- **Drawbridges**: `piece_drawbridge` ("Drawbridge") and `piece_drawbridge_log` ("Rustic Drawbridge")
+  in bundle `c4210710`; the deck is `door` (raised by its rotation) with `door/collider` along its X.
+  The English names are in `resources.assets` as `"piece_drawbridge","Drawbridge"` lines (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by
   an MIT one (2026-09-30). Matters if RcinelLevel ever ships a library inside its package.
 

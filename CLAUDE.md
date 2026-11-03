@@ -20,15 +20,38 @@ themselves. Treat the config, the item names and the Thunderstore page as someth
 depend on. The rules below come from the owner's other repositories, CodeIsNotEvil/MyMonoRepo
 (LaunchHeim) and CodeIsNotEvil/RcinelTranslate.
 
-There is no plugin code yet. Update this file's layout and commands once the project exists.
-
-- `assets/`: the logo and item icons. The SVGs are the source; `assets/README.md` says how the PNGs
-  are rendered. `scripts/text_logo.py` makes the logo.
+- `src/RcinelLevel/`: the BepInEx plugin (net472, Jotunn), `RcinelLevel.slnx`. One file per part:
+  `Items.cs` (the tools, the hoe's piece, the terrain tiles, cloned from the game's prefabs),
+  `Frame.cs` (the frame and the probe's measurement), `Leveling.cs` (tiling and levelling),
+  `Controls.cs` and `FrameView.cs` (input, readout, the frame drawn in the world), `Patches.cs`
+  (Harmony), `Settings.cs` (the config file), `PluginFiles.cs` (models and icons next to the DLL).
+- `assets/`: the logo (SVG source, `scripts/text_logo.py`), the item icons and the models (both made by
+  `models/build.py`). `assets/README.md` says how each is rendered.
 - `package/`: the files of the Thunderstore package that aren't built (`icon.png` so far).
 - `models/build.py`: builds the 3D models in Blender (5.2, headless) and exports them to
   `assets/models/` (OBJ meshes, one PNG atlas, previews). The script is the source; `models/README.md`
   has the command and the conventions the plugin's loader relies on. After changing a model, render
   the previews and look at them before committing.
+
+## Building and trying it
+
+```fish
+cp Environment.props.example Environment.props   # once: the game's path and the LaunchHeim test instance
+dotnet build RcinelLevel.slnx                     # builds and copies into the test instance
+scripts/package.py                                # the Thunderstore zip in dist/
+```
+
+A release: the version in `Directory.Build.props` and `RcinelLevelPlugin.Version`, a dated section in
+`CHANGELOG.md` (the package's changelog tab), then `scripts/package.py`, which refuses mismatches. The
+owner uploads the zip on thunderstore.io as CodeIsNotEvil and decides when to tag `vX.Y.Z`; the
+build can't run in CI without the game's assemblies.
+
+The build compiles against the local game's assemblies, publicized into `obj/` by
+BepInEx.AssemblyPublicizer; nothing is written into the game folder (JotunnLib's own build props would
+do that, so its build assets are excluded). With `TestInstance` set, every build copies the DLL, the
+models and the icons into `<instance>/BepInEx/plugins/RcinelLevel-dev/`, a folder LaunchHeim leaves
+alone. The instance needs Jotunn, installed through LaunchHeim. There are no automated tests yet: the
+plugin needs the game, and the owner tries every change in it.
 
 ## One repository per application
 
