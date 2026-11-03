@@ -78,6 +78,12 @@ on GitHub). No code yet.
   raises and costs stone, the pickaxe can be locked to the frame ([[0015-hoe-only-fills-and-costs-stone]],
   [[0016-pickaxe-depth-lock]], [[0017-icons-rendered-from-the-models]]).
 
+- **0.1.0 released 2026-11-03** on Thunderstore as `CodeIsNotEvil-RcinelLevel`, after the owner
+  tested it (published 15:51 UTC). The published zip is byte-identical to `scripts/package.py`'s output
+  from `00d9d1a`, which is the tree of `main` after PR #3. The owner tagged `v0.1.0` (on `3ac8fdb`) and
+  made the GitHub release with the same zip; Claude's own attempt had been stopped by the permission
+  check, since tags are the owner's call.
+
 ## Open
 - Check the stone rate taken from the game's Raise ground against the game.
 - Resizing the hoe's brush in the game, not only in the config file.
