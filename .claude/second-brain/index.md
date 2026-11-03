@@ -17,3 +17,6 @@ status: active
 ## Decisions
 - [[0001-one-repository-per-application]]: every new app gets its own repository; knowledge is
   copied in, naming its source
+- [[0002-neutral-point-is-cut-and-fill-balance]]: the probe finds the height where cut equals fill
+- [[0003-separate-tools]]: the hoe and the probe are new items; the game's hoe is unchanged
+- [[0004-jotunn]]: items, pieces and config sync through Jotunn, compiled against the game
