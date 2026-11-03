@@ -47,6 +47,12 @@ under `plugins/` (DLL, PDB, `models/`, `icons/`). Dependencies: `denikson-BepInE
 (what Jotunn asks for) and `ValheimModding-Jotunn-2.30.2`. The owner uploads the zip by hand on the
 website; no token in the repository.
 
+## Published
+- 0.1.0, 2026-11-03: https://thunderstore.io/c/valheim/p/CodeIsNotEvil/RcinelLevel/ (the team
+  CodeIsNotEvil exists now). To check a published version against a local build, download
+  `https://thunderstore.io/package/download/CodeIsNotEvil/RcinelLevel/<version>/` and compare the
+  entries' hashes; Thunderstore keeps the files as uploaded.
+
 ## Before the first upload (checklist)
 - The owner tried the exact zip in the LaunchHeim `test` instance, alone and with a second player on
   a server.
