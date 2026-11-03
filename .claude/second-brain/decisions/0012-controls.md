@@ -47,3 +47,9 @@ the game (and with common mods) is checked in the first test; the defaults chang
 don't. Key hints belong on the frame or in the hover text, the way the game shows its own.
 
 Related: [[0010-area-shapes-and-scroll]], [[0006-probe-area-set-by-player]], [[rcinellevel]]
+
+**Defaults changed 2026-11-03**, before the first build, after reading Valheim's default bindings
+(`ZInput`, assembly_utils): `T` opens emotes, `G` the radial menu, `Left Shift` is Run and AltPlace.
+The defaults are now: cycle shape `Y`, pin frame `B` (new: the frame follows the probe's aim until
+pinned), resize `Left Alt` + wheel, height `H` + wheel, take height `J`, reset to the probe `U`.
+Keys the game leaves free: B, H, I, J, K, L, N, O, P, U, Y, Z.

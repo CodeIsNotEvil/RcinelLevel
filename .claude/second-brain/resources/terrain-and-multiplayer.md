@@ -34,6 +34,15 @@ Read from the decompiled game (`assembly_valheim.dll`, Unity 6000.0.75f1, 2026-1
   make the cut-and-fill height unreachable in parts of an area
   ([[0002-neutral-point-is-cut-and-fill-balance]]).
 
+- The build ghost is instantiated from the piece's prefab with `TerrainOp.m_forceDisableTerrainOps`
+  set (`Player.SetupPlacementGhost`), so a ghost never edits terrain; RcinelLevel's `LevelAction`
+  checks the same flag.
+- `Heightmap.WorldToVertex` rounds to the nearest vertex; heightmaps are centred on multiples of 64
+  with `m_width` 64, so vertices are at whole world metres, and a vertex on a zone border belongs to
+  both heightmaps. `IsPointInside` includes the border, so even a one-vertex op reaches both.
+- The game's terrain ops are listed in `ObjectDB.m_terrainOps`, hashed into `m_terrainOpsByHash` by
+  `UpdateRegisters`; mods must add theirs there (RcinelLevel's `RegisterTilesPatch`).
+
 ## Who owns what
 - Every 2 s `ZDOMan.ReleaseNearbyZDOS` gives each persistent network object near a peer to that peer,
   unless its owner is still near it. The owner of a patch of terrain is therefore usually a player

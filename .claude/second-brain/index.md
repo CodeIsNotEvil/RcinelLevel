@@ -29,3 +29,4 @@ status: active
 - [[0010-area-shapes-and-scroll]]: circle, square or rectangle, scroll to resize; height also by hand
 - [[0011-model-designs]]: a soil-probe rod and a screed-board hoe with square end walls
 - [[0012-controls]]: the probe picks the shape; modifier + scroll resizes and sets the height
+- [[0013-off-hand-through-a-patch]]: the probe (a torch clone as a left-hand shield) and the level hoe share the hands

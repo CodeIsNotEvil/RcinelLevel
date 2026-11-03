@@ -20,8 +20,11 @@ themselves. Treat the config, the item names and the Thunderstore page as someth
 depend on. The rules below come from the owner's other repositories, CodeIsNotEvil/MyMonoRepo
 (LaunchHeim) and CodeIsNotEvil/RcinelTranslate.
 
-There is no plugin code yet. Update this file's layout and commands once the project exists.
-
+- `src/RcinelLevel/`: the BepInEx plugin (net472, Jotunn), `RcinelLevel.slnx`. One file per part:
+  `Items.cs` (the tools, the hoe's piece, the terrain tiles, cloned from the game's prefabs),
+  `Frame.cs` (the frame and the probe's measurement), `Leveling.cs` (tiling and levelling),
+  `Controls.cs` and `FrameView.cs` (input, readout, the frame drawn in the world), `Patches.cs`
+  (Harmony), `Settings.cs` (the config file), `PluginFiles.cs` (models and icons next to the DLL).
 - `assets/`: the logo and item icons. The SVGs are the source; `assets/README.md` says how the PNGs
   are rendered. `scripts/text_logo.py` makes the logo.
 - `package/`: the files of the Thunderstore package that aren't built (`icon.png` so far).
@@ -29,6 +32,20 @@ There is no plugin code yet. Update this file's layout and commands once the pro
   `assets/models/` (OBJ meshes, one PNG atlas, previews). The script is the source; `models/README.md`
   has the command and the conventions the plugin's loader relies on. After changing a model, render
   the previews and look at them before committing.
+
+## Building and trying it
+
+```fish
+cp Environment.props.example Environment.props   # once: the game's path and the LaunchHeim test instance
+dotnet build RcinelLevel.slnx                     # builds and copies into the test instance
+```
+
+The build compiles against the local game's assemblies, publicized into `obj/` by
+BepInEx.AssemblyPublicizer; nothing is written into the game folder (JotunnLib's own build props would
+do that, so its build assets are excluded). With `TestInstance` set, every build copies the DLL, the
+models and the icons into `<instance>/BepInEx/plugins/RcinelLevel-dev/`, a folder LaunchHeim leaves
+alone. The instance needs Jotunn, installed through LaunchHeim. There are no automated tests yet: the
+plugin needs the game, and the owner tries every change in it.
 
 ## One repository per application
 

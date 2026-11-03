@@ -67,10 +67,17 @@ on GitHub). No code yet.
 - Controls: the probe cycles the shape, modifier + scroll resizes, height by modifier + scroll,
   eyedropper or reset to the probe result; keys are config entries ([[0012-controls]]).
 
+- First version of the plugin built on 2026-11-03 (`src/RcinelLevel/`), copied into the LaunchHeim
+  `test` instance; the two tools share the hands through a patch ([[0013-off-hand-through-a-patch]]).
+
 ## Open
-- How the tools sit in the hand: the owner sends a screenshot after the first test, and the attach
-  rotation and offset are tuned from it.
-- Whether the default keys clash with the game's bindings: checked in the first test.
+- How the tools sit in the hand: the owner sends a screenshot after the first test; the placement is
+  in the config file and applies while the game runs.
+- Everything in the first version is untried in the game: crafting, holding both tools, the frame's
+  look, the readout, levelling, multiplayer.
+- The probe measures up to (2·64+1)² vertices twice a second at the largest server limit; fine at the
+  default 16, may need a per-zone heightmap cache for big frames.
+- A `CHANGELOG.md` and the Thunderstore package build come with the first release.
 - Does it go on the owner's app site too?
 
 ## Plan (proposal, nothing decided)

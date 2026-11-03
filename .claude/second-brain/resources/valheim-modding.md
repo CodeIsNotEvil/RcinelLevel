@@ -30,9 +30,10 @@ says when it was found.
     build of RcinelLevel should get a folder of its own that isn't the Thunderstore name, so a later
     install from Thunderstore doesn't mix with it.
   - Seen 2026-11-03: MultiUserChest's manifest depends on `ValheimModding-Jotunn-2.30.0`, but Jotunn
-    is neither in `plugins/` nor in `instance.json`. Either LaunchHeim skipped the dependency or it
-    was removed by hand; worth a look in LaunchHeim. If RcinelLevel uses Jotunn, install it into the
-    instance before testing.
+    was neither in `plugins/` nor in `instance.json`. Later that day the owner installed Jotunn 2.30.2
+    through LaunchHeim and removed MultiUserChest.
+  - The dev build goes to `BepInEx/plugins/RcinelLevel-dev/` (the csproj's `CopyToTestInstance`).
+    LaunchHeim only deletes files it recorded for a mod, and its own `LaunchHeim/` folder.
 - Started directly (as LaunchHeim does), Valheim shows a black window if Steam isn't logged in.
   LaunchHeim starts Steam and waits for the login first (2026-09-30).
 
@@ -74,6 +75,27 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   files and test fixtures stay the same on every runner (2026-10-04).
 - **.NET's `Encoding.UTF8` writes a BOM.** Files other tools parse (Thunderstore's `manifest.json`)
   must be written without one (2026-09-26).
+- **Unity 6's ImageConversionModule needs netstandard 2.1**, which a net472 plugin can't reference
+  (CS1705). Load PNGs with Jotunn's `AssetUtils.LoadImage(texture, bytes)`, which calls
+  `ImageConversion.LoadImage` by reflection (2026-11-03).
+- **JotunnLib's NuGet build props write into the game folder**: with `ExecutePrebuild` they publicize
+  the game's assemblies into `valheim_Data/Managed/publicized_assemblies` and reference them from
+  there. RcinelLevel references JotunnLib with `ExcludeAssets="build;runtime"` and publicizes into
+  `obj/` with BepInEx.AssemblyPublicizer.MSBuild instead (2026-11-03).
+- **Valheim's default keys** (`ZInput`, assembly_utils): E use, R hide, Space jump, Left Ctrl crouch,
+  Left Shift run and AltPlace, C walk, Q autorun, X sit, F guardian power, V auto-pickup, Tab
+  inventory, M map, G radial menu, T emotes, F5 console, 1–8 hotbar. Read keys with
+  `ZInput.GetKey(KeyCode, logWarning: false)`; Valheim runs on Unity's new Input System (2026-11-03).
+- **The scroll wheel in build mode** turns the ghost only when the selected piece has `m_canRotate`;
+  otherwise the camera zooms (`GameCamera`). RcinelLevel hides the wheel from the game while a frame
+  modifier is held (`ScrollPatch`) (2026-11-03).
+- **Reading prefabs without Unity**: UnityPy (in a scratch venv) reads the game's asset bundles in
+  `valheim_Data/StreamingAssets/SoftRef/Bundles/`. The tools and pieces are in bundle `c4210710`;
+  hierarchies and transforms read fine, MonoBehaviour fields don't (no type trees), so a component's
+  settings are logged at run time instead (2026-11-03).
+- **MSBuild item metadata doesn't expand inside a property function**: `%(Folder)` inside
+  `$([System.IO.Path]::Combine(...))` in an item transform created a folder literally named
+  `%(Folder)`. One `Copy` per destination folder instead (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by
   an MIT one (2026-09-30). Matters if RcinelLevel ever ships a library inside its package.
 
