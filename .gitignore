@@ -1,0 +1,31 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.binlog
+
+# The Thunderstore package is built from the sources (manifest, icon, README, DLL), never committed.
+dist/
+*.zip
+
+# Valheim's own assemblies, and publicized copies of them, may not be redistributed: Iron Gate owns
+# them. Builds read them from the local game install instead.
+assembly_*.dll
+publicized_assemblies/
+
+# Local paths to the game and the test instance (see CLAUDE.md, "Building").
+Environment.props
+*.user
+
+# IDEs
+.idea/
+.vs/
+.vscode/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+
+# Others
+~$*
+*~

@@ -1,0 +1,9 @@
+# LF everywhere, so files diff the same on Windows and GitHub's Windows runners don't rewrite them.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+*.dll binary
+*.zip binary
