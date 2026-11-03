@@ -26,3 +26,5 @@ status: active
 - [[0007-recipes]]: probe and level hoe at the Workbench, the hoe as an upgrade of the game's hoe
 - [[0008-rcinel-level-namespace]]: namespaces `Rcinel.Level.*`
 - [[0009-blender-models-loaded-at-runtime]]: Blender scripts make the models, the plugin loads them
+- [[0010-area-shapes-and-scroll]]: circle, square or rectangle, scroll to resize; height also by hand
+- [[0011-model-designs]]: a soil-probe rod and a screed-board hoe with square end walls

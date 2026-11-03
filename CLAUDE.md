@@ -25,6 +25,10 @@ There is no plugin code yet. Update this file's layout and commands once the pro
 - `assets/`: the logo and item icons. The SVGs are the source; `assets/README.md` says how the PNGs
   are rendered. `scripts/text_logo.py` makes the logo.
 - `package/`: the files of the Thunderstore package that aren't built (`icon.png` so far).
+- `models/build.py`: builds the 3D models in Blender (5.2, headless) and exports them to
+  `assets/models/` (OBJ meshes, one PNG atlas, previews). The script is the source; `models/README.md`
+  has the command and the conventions the plugin's loader relies on. After changing a model, render
+  the previews and look at them before committing.
 
 ## One repository per application
 

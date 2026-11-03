@@ -26,9 +26,11 @@ copied from a game item so lighting and shading match Valheim. No Unity Editor.
 **Consequences.**
 - Blender has to be installed on the owner's machine (`sudo pacman -S blender`), and in CI if models
   are ever built there; the exported files are committed, so a plugin build doesn't need Blender.
-- The plugin needs a small loader for the export format (glTF binary or a simple format of our own;
-  to choose when the first model is made), and must handle a missing or broken file without
-  breaking the game.
+- The plugin needs a small loader for the export format, and must handle a missing or broken file
+  without breaking the game. Chosen with the first models (2026-11-03): **OBJ** (triangles, normals,
+  UVs, one object, no `.mtl`) plus one shared **PNG** atlas. OBJ is plain text a hundred-line loader
+  reads; glTF would need a JSON parser and buffer accessors for no gain at 200 triangles. The axes
+  and the origin convention are in `models/README.md`.
 - The scripts are the source: models are changed by editing the script and exporting again, never
   by hand in the exported file. That matches the icons (`assets/README.md`), where the SVG is the
   source.
