@@ -80,8 +80,9 @@ on GitHub). No code yet.
 
 - **0.1.0 released 2026-11-03** on Thunderstore as `CodeIsNotEvil-RcinelLevel`, after the owner
   tested it (published 15:51 UTC). The published zip is byte-identical to `scripts/package.py`'s output
-  from `00d9d1a`, which is the tree of `main` after PR #3. Tag `v0.1.0` and the GitHub release are the
-  owner's to make (Claude's attempt was stopped by the permission check, as tags are the owner's call).
+  from `00d9d1a`, which is the tree of `main` after PR #3. The owner tagged `v0.1.0` (on `3ac8fdb`) and
+  made the GitHub release with the same zip; Claude's own attempt had been stopped by the permission
+  check, since tags are the owner's call.
 
 ## Open
 - Check the stone rate taken from the game's Raise ground against the game.
