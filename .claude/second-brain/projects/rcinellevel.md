@@ -59,12 +59,14 @@ on GitHub). No code yet.
   step across one 1 m cell. "90° walls" means as steep as the grid allows.
 - Straight walls run north–south or east–west only: level ops ignore rotation.
 
+- Frame: circle, square or rectangle, resized with the scroll wheel; the rectangle only toward
+  where the player looks. Height from the probe or by hand ([[0010-area-shapes-and-scroll]]).
+- Looks: the probe is a long rod you push into the ground to feel for hard layers (a soil probe);
+  the level hoe's design was left to Claude ([[0011-model-designs]]).
+
 ## Open questions for the owner
-- How the player sets the area: mark two corners with the probe, type width and depth, or scroll to
-  resize a frame?
-- How the hoe gets its height: always the probe's last result, or also set by hand (and how)?
-- What the models look like (a dowsing rod or a stake for the probe?), and whether the level hoe
-  should look like the game's hoe with a change or like something new.
+- The controls: how to pick the shape, set the height by hand, and keep scroll-to-resize apart from
+  the game's own uses of the wheel.
 - Does it go on the owner's app site too?
 
 ## Plan (proposal, nothing decided)
