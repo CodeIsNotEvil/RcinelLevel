@@ -69,6 +69,7 @@ internal static class Items
     {
       var material = MakeMaterial();
       CreateTiles();
+      MeasureStoneCost();
       CreateProbe(material);
       CreatePieceTableAndPiece();
       CreateHoe(material);
@@ -155,6 +156,61 @@ internal static class Items
     // The menu's ObjectDB exists already; the game's own, in the world, registers them on its Awake
     // through RegisterTilesPatch.
     ObjectDB.instance?.UpdateRegisters();
+  }
+
+  /// <summary>
+  /// Works out what the game's own Raise ground costs per cubic metre: its stone divided by the ground
+  /// one use raises (its radius, height and falloff, as <c>TerrainComp.RaiseTerrain</c> applies them on
+  /// the 1 m grid). The level hoe charges the same rate (decision 0015), so it is never cheaper than
+  /// raising by hand.
+  /// </summary>
+  private static void MeasureStoneCost()
+  {
+    var table = PrefabManager.Instance.GetPrefab("Hoe")?.GetComponent<ItemDrop>()?.m_itemData.m_shared.m_buildPieces;
+    foreach (var piece in table is null ? [] : table.m_pieces)
+    {
+      var op = piece == null ? null : piece.GetComponent<TerrainOp>();
+      if (op is null || !op.m_settings.m_raise || op.m_settings.m_raiseDelta <= 0f)
+      {
+        continue;
+      }
+
+      var stone = 0;
+      foreach (var requirement in piece!.GetComponent<Piece>()?.m_resources ?? [])
+      {
+        if (requirement.m_resItem != null && requirement.m_resItem.name == "Stone")
+        {
+          stone += requirement.m_amount;
+        }
+      }
+
+      var s = op.m_settings;
+      var reach = Mathf.CeilToInt(s.m_raiseRadius);
+      var volume = 0f;
+      for (var z = -reach; z <= reach; z++)
+      {
+        for (var x = -reach; x <= reach; x++)
+        {
+          var distance = Mathf.Sqrt(x * x + z * z);
+          if (!s.m_square && distance > s.m_raiseRadius)
+          {
+            continue;
+          }
+
+          var strength = s.m_square || s.m_raisePower <= 0f ? 1f : Mathf.Pow(1f - distance / s.m_raiseRadius, s.m_raisePower);
+          volume += s.m_raiseDelta * strength;
+        }
+      }
+
+      if (stone > 0 && volume > 0f)
+      {
+        Stroke.StonePerCubicMetre = stone / volume;
+        _logger.LogInfo($"The game's {piece.name}: {stone} stone for {volume:0.00} m³ (radius {s.m_raiseRadius}, delta {s.m_raiseDelta}, power {s.m_raisePower}), so {Stroke.StonePerCubicMetre:0.00} stone per m³.");
+        return;
+      }
+    }
+
+    _logger.LogWarning($"The game's Raise ground wasn't found; the level hoe charges {Stroke.StonePerCubicMetre} stone per m³.");
   }
 
   private static void CreateProbe(Material? material)

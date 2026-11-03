@@ -50,6 +50,12 @@ internal sealed class Frame
   /// </summary>
   public float? PinnedBalance { get; private set; }
 
+  /// <summary>
+  /// The pickaxe may dig inside the frame no deeper than the target, and not past its edge
+  /// (decision 0016). Only on a pinned frame.
+  /// </summary>
+  public bool DepthLocked { get; private set; }
+
   /// <summary>The height the hoe levels to; null means "the probe's result".</summary>
   public float? ManualHeight { get; private set; }
 
@@ -91,6 +97,13 @@ internal sealed class Frame
   {
     Pinned = pinned;
     PinnedBalance = pinned ? balance : null;
+    DepthLocked &= pinned;
+    Revision++;
+  }
+
+  public void SetDepthLocked(bool locked)
+  {
+    DepthLocked = locked && Pinned;
     Revision++;
   }
 
@@ -227,6 +240,35 @@ internal static class Probe
 {
   /// <summary>How far a vertex may be moved from the ground the world was generated with (TerrainComp).</summary>
   public const float MaxChange = 8f;
+
+  /// <summary>
+  /// One vertex's height now and as the world generated it, for the few vertices of a brush or a
+  /// pickaxe hit (the whole frame goes through <see cref="Measure"/>). Null where nothing is loaded.
+  /// </summary>
+  public static (float Height, float Generated)? At(int x, int z)
+  {
+    var point = new Vector3(x, 0f, z);
+    if (!Heightmap.GetHeight(point, out var height))
+    {
+      return null;
+    }
+
+    var compiler = TerrainComp.FindTerrainCompiler(point);
+    if (compiler is null || compiler.m_levelDelta is null || compiler.m_hmap is null)
+    {
+      return (height, height);
+    }
+
+    compiler.m_hmap.WorldToVertex(point, out var j, out var i);
+    var size = compiler.m_width + 1;
+    if (j < 0 || i < 0 || j >= size || i >= size)
+    {
+      return (height, height);
+    }
+
+    var index = i * size + j;
+    return (height, height - compiler.m_levelDelta[index] - compiler.m_smoothDelta[index]);
+  }
 
   /// <summary>
   /// Measures the frame, against <paramref name="target"/> if given, else against its own balance.

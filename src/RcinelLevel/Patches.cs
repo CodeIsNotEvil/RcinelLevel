@@ -111,3 +111,13 @@ internal static class ScrollPatch
     }
   }
 }
+
+/// <summary>
+/// Gives <see cref="DepthLock"/> the first look at every terrain op as it wakes, before it sends its
+/// edit on; only the local player's pickaxe hits into a locked frame are taken over.
+/// </summary>
+[HarmonyPatch(typeof(TerrainOp), nameof(TerrainOp.Awake))]
+internal static class DepthLockPatch
+{
+  private static bool Prefix(TerrainOp __instance) => !DepthLock.TakeOver(__instance);
+}

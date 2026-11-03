@@ -44,6 +44,8 @@ internal sealed class Settings : IDisposable
       "Set the target height to the ground or building piece you aim at.");
     ResetHeight = config.Bind("Keys", "Reset height to probe", KeyCode.U,
       "Set the target height back to the probe's cut-and-fill result.");
+    LockDepth = config.Bind("Keys", "Lock pickaxe depth", KeyCode.L,
+      "While holding the probe: lock the pickaxe to the frame, so inside it the pickaxe digs no deeper than the target height and never past the frame's edge.");
     HeightStep = config.Bind("Controls", "Height step", 0.25f,
       new ConfigDescription("Metres per scroll step with the height modifier.", new AcceptableValueRange<float>(0.05f, 2f)));
 
@@ -58,6 +60,11 @@ internal sealed class Settings : IDisposable
       new ConfigDescription(
         "How far the level hoe reaches from where you aim, in metres: 2 levels a square of 5 by 5 m per stroke, cut off at the frame's edge.",
         new AcceptableValueRange<int>(0, 8)));
+    StoneCost = config.Bind("Server", "Stone cost", 1f,
+      new ConfigDescription(
+        "The level hoe pays for the ground it raises in stone, at the rate the game's own Raise ground costs per cubic metre, times this. 0 makes it free. Synced from the server.",
+        new AcceptableValueRange<float>(0f, 10f),
+        new ConfigurationManagerAttributes { IsAdminOnly = true }));
     OpsPerFrame = config.Bind("Performance", "Terrain edits per frame", 8,
       new ConfigDescription(
         "How many terrain edits the hoe sends per rendered frame. Lower it if levelling a large frame stutters.",
@@ -100,6 +107,8 @@ internal sealed class Settings : IDisposable
   public ConfigEntry<KeyCode> HeightModifier { get; }
   public ConfigEntry<KeyCode> PickHeight { get; }
   public ConfigEntry<KeyCode> ResetHeight { get; }
+  public ConfigEntry<KeyCode> LockDepth { get; }
+  public ConfigEntry<float> StoneCost { get; }
   public ConfigEntry<float> HeightStep { get; }
   public ConfigEntry<int> MaxRadius { get; }
   public ConfigEntry<int> HoeBrush { get; }

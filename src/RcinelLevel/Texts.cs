@@ -21,8 +21,8 @@ internal static class Texts
         "A long rod pushed into the ground to feel how it lies. Held in the off hand, it frames an area and finds the height where levelling it digs away as much as it fills.",
       [HoeName.Substring(1)] = "Level hoe",
       [HoeDescription.Substring(1)] =
-        "A hoe with a square flint scoop. Levels the probe's frame to one height, with walls as steep as the ground allows.",
-      [LevelPieceName.Substring(1)] = "Level the frame",
-      [LevelPieceDescription.Substring(1)] = "Levels everything inside the probe's frame to the target height.",
+        "A hoe with a square flint blade set straight on the haft. Raises low ground inside the probe's frame up to its height, paid in stone like Raise ground. Digging is the pickaxe's work.",
+      [LevelPieceName.Substring(1)] = "Fill to the frame's height",
+      [LevelPieceDescription.Substring(1)] = "Raises the ground under the brush, inside the probe's frame, up to the target height. Costs stone for the ground it raises.",
     });
 }

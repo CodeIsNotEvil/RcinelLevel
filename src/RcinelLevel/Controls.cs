@@ -24,6 +24,7 @@ internal sealed class Controls : IDisposable
 {
   private const float MeasureInterval = 0.5f;
   private const float AimDistance = 60f;
+  private const string StoneName = "$item_stone";
 
   private static readonly int GroundMask = LayerMask.GetMask("terrain");
   private static readonly int AnythingMask = LayerMask.GetMask("terrain", "piece", "piece_nonsolid", "static_solid", "Default", "Default_small");
@@ -36,6 +37,8 @@ internal sealed class Controls : IDisposable
   private Measurement? _measurement;
   private int _measuredRevision = -1;
   private float _measuredAt;
+  private (float Fill, int Stone)? _nextStroke;
+  private float _plannedAt;
 
   public Controls(Settings settings, ManualLogSource logger)
   {
@@ -46,6 +49,11 @@ internal sealed class Controls : IDisposable
 
   /// <summary>The one instance, for <see cref="LevelAction"/>, which the game creates.</summary>
   public static Controls? Current { get; private set; }
+
+  public Frame Frame => _frame;
+
+  /// <summary>The floor the pickaxe may not dig below inside the frame, while the lock is on.</summary>
+  public float? LockedDepth => _frame.Pinned && _frame.DepthLocked ? Target : null;
 
   /// <summary>The height the hoe levels to: set by hand, else the probe's result from when the frame was pinned, else the live one.</summary>
   private float? Target => _frame.ManualHeight ?? _frame.PinnedBalance ?? _measurement?.Balance;
@@ -64,14 +72,16 @@ internal sealed class Controls : IDisposable
 
     var probe = Items.IsProbe(player.GetLeftItem());
     var hoe = Items.IsLevelHoe(player.GetRightItem());
-    if (!probe && !hoe)
+    // A pickaxe is two-handed, so the probe can't be held with it; the locked frame shows anyway.
+    var pickaxe = LockedDepth is not null && player.GetRightItem()?.m_shared.m_skillType == Skills.SkillType.Pickaxes;
+    if (!probe && !hoe && !pickaxe)
     {
       Hide();
       return;
     }
 
     _frame.Limit(_settings.MaxRadius.Value);
-    if (TakesInput())
+    if (TakesInput() && (probe || hoe))
     {
       HandleInput(probe);
     }
@@ -93,8 +103,16 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    _view.Show(_frame, Target, hoe ? Brush(player) : null);
-    _readout.Show(Describe(probe, hoe));
+    var brush = hoe ? Brush(player) : null;
+    if (brush is { } b && Target is { } target && Time.time - _plannedAt > 0.25f)
+    {
+      var plan = Stroke.Plan(_frame, b, target, _settings.StoneCost.Value);
+      _nextStroke = (plan.Fill, plan.Stone);
+      _plannedAt = Time.time;
+    }
+
+    _view.Show(_frame, Target, brush);
+    _readout.Show(Describe(probe, hoe, pickaxe, player));
   }
 
   /// <summary>Called when the level hoe's piece is placed at <paramref name="point"/>.</summary>
@@ -128,15 +146,36 @@ internal sealed class Controls : IDisposable
     }
 
     var brush = BrushBounds(point);
-    var tiles = TerrainTiles.Cover(brush, (x, z) => _frame.Contains(x, z));
-    if (tiles.Count == 0)
+    if (!_frame.Contains(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.z)) && TerrainTiles.Cover(brush, _frame.Contains).Count == 0)
     {
       player.Message(MessageHud.MessageType.Center, "Aim inside the frame.");
       return;
     }
 
-    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, target, _settings.OpsPerFrame.Value));
-    _logger.LogDebug($"Levelling around ({Mathf.RoundToInt(point.x)}, {Mathf.RoundToInt(point.z)}) to {target:0.00} m with {tiles.Count} terrain edits.");
+    var (tiles, fill, stone) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value);
+    if (tiles.Count == 0)
+    {
+      player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");
+      return;
+    }
+
+    // Raising ground costs stone like the game's Raise ground; no-cost mode (devcommands) skips it.
+    if (stone > 0 && !player.NoCostCheat())
+    {
+      var inventory = player.GetInventory();
+      var have = inventory.CountItems(StoneName);
+      if (have < stone)
+      {
+        player.Message(MessageHud.MessageType.Center, $"This needs {stone} stone, you have {have}.");
+        return;
+      }
+
+      inventory.RemoveItem(StoneName, stone);
+    }
+
+    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, _settings.OpsPerFrame.Value));
+    _plannedAt = 0f;
+    _logger.LogDebug($"Filling {fill:0.0} m³ around ({Mathf.RoundToInt(point.x)}, {Mathf.RoundToInt(point.z)}) to {target:0.00} m for {stone} stone with {tiles.Count} terrain edits.");
   }
 
   public void Dispose()
@@ -164,6 +203,17 @@ internal sealed class Controls : IDisposable
     if (probe && Keys.Pressed(_settings.CycleShape.Value))
     {
       _frame.CycleShape();
+    }
+
+    if (probe && Keys.Pressed(_settings.LockDepth.Value))
+    {
+      if (!_frame.Pinned && _frame.Placed)
+      {
+        Measure();
+        _frame.SetPinned(true, _measurement?.Balance);
+      }
+
+      _frame.SetDepthLocked(!_frame.DepthLocked);
     }
 
     if (probe && Keys.Pressed(_settings.PinFrame.Value))
@@ -226,15 +276,14 @@ internal sealed class Controls : IDisposable
     return (x - r, z - r, x + r, z + r);
   }
 
-  private string Describe(bool probe, bool hoe)
+  private string Describe(bool probe, bool hoe, bool pickaxe, Player player)
   {
     var text = new StringBuilder();
-    text.Append(probe ? "Ground probe" : "Level hoe").Append(" · ").Append(_frame.Describe())
+    text.Append(probe ? "Ground probe" : hoe ? "Level hoe" : "Pickaxe").Append(" · ").Append(_frame.Describe())
       .Append(" · ").Append(_frame.Pinned ? "pinned" : "follows your aim");
-    if (hoe)
+    if (_frame.DepthLocked && Target is { } floor)
     {
-      var side = 2 * _settings.HoeBrush.Value + 1;
-      text.Append($" · brush {side} × {side} m");
+      text.Append($" · pickaxe locked at {floor:0.00} m");
     }
 
     text.AppendLine();
@@ -246,7 +295,17 @@ internal sealed class Controls : IDisposable
         text.Append($" · {m.OutOfReach} points beyond the game's ±{Probe.MaxChange:0} m limit");
       }
 
-      text.AppendLine().Append($"Probe now: balance {m.Balance:0.00} m · ground {m.Lowest:0.0} to {m.Highest:0.0} m");
+      if (hoe && _nextStroke is { } next)
+      {
+        var side = 2 * _settings.HoeBrush.Value + 1;
+        text.AppendLine().Append($"Next stroke ({side} × {side} m): fill {next.Fill:0.0} m³ for {next.Stone} stone")
+          .Append($" · you carry {player.GetInventory().CountItems(StoneName)}");
+      }
+      else
+      {
+        text.AppendLine().Append($"Probe now: balance {m.Balance:0.00} m · ground {m.Lowest:0.0} to {m.Highest:0.0} m");
+      }
+
       if (m.Loaded < m.Expected)
       {
         text.Append($" · only {100 * m.Loaded / Math.Max(1, m.Expected)}% of the frame is loaded, the rest is too far away");
@@ -257,10 +316,15 @@ internal sealed class Controls : IDisposable
       text.Append("The ground under the frame isn't loaded yet.");
     }
 
+    if (pickaxe && !probe && !hoe)
+    {
+      return text.ToString();
+    }
+
     text.AppendLine().Append("<size=14>");
     if (probe)
     {
-      text.Append($"[{_settings.CycleShape.Value}] shape   [{_settings.PinFrame.Value}] pin   ");
+      text.Append($"[{_settings.CycleShape.Value}] shape   [{_settings.PinFrame.Value}] pin   [{_settings.LockDepth.Value}] lock pickaxe   ");
     }
 
     text.Append($"[{_settings.ResizeModifier.Value} + wheel] size   [{_settings.HeightModifier.Value} + wheel] height   ")

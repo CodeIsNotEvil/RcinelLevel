@@ -103,13 +103,13 @@ internal static class TerrainTiles
   }
 
   /// <summary>
-  /// Places the tiles at <paramref name="height"/>, a few per rendered frame, so a large frame doesn't
+  /// Places the tiles, each at its own height, a few per rendered frame, so a large area doesn't
   /// freeze the game. Each one is a terrain op the game applies and sends on like the hoe's own.
   /// </summary>
-  public static IEnumerator Level(List<(int X, int Z, int Radius)> tiles, float height, int perFrame)
+  public static IEnumerator Level(List<(int X, int Z, int Radius, float Height)> tiles, int perFrame)
   {
     var placed = 0;
-    foreach (var (x, z, radius) in tiles)
+    foreach (var (x, z, radius, height) in tiles)
     {
       if (!Prefabs.TryGetValue(radius, out var prefab))
       {
@@ -123,6 +123,152 @@ internal static class TerrainTiles
         yield return null;
       }
     }
+  }
+
+  public static bool IsTile(TerrainOp op) => op.name.StartsWith("RcinelLevel_LevelTile", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// One stroke of the level hoe: it only <b>raises</b> ground that lies below the target, inside the
+/// brush and the frame, and pays for it in stone (decision 0015). Digging is the pickaxe's job.
+/// </summary>
+internal static class Stroke
+{
+  /// <summary>Stone per cubic metre the game's own Raise ground costs; measured from it in <see cref="Items"/>.</summary>
+  public static float StonePerCubicMetre { get; set; } = 1f;
+
+  /// <summary>What a stroke would raise: the tiles, the cubic metres and the stone it costs.</summary>
+  public static (List<(int X, int Z, int Radius, float Height)> Tiles, float Fill, int Stone) Plan(
+    Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor)
+  {
+    // The game clamps every vertex to 8 m from the generated ground, so nothing beyond is raised or paid.
+    var raise = new Dictionary<(int, int), float>();
+    for (var z = brush.MinZ; z <= brush.MaxZ; z++)
+    {
+      for (var x = brush.MinX; x <= brush.MaxX; x++)
+      {
+        if (!frame.Contains(x, z) || Probe.At(x, z) is not { } ground)
+        {
+          continue;
+        }
+
+        var top = Math.Min(target, ground.Generated + Probe.MaxChange);
+        if (top - ground.Height > 0.02f)
+        {
+          raise[(x, z)] = top - ground.Height;
+        }
+      }
+    }
+
+    var fill = 0f;
+    foreach (var amount in raise.Values)
+    {
+      fill += amount;
+    }
+
+    // Where the limit lowers a vertex's top, a tile at the target still ends at the limit: the game clamps.
+    var tiles = new List<(int, int, int, float)>();
+    foreach (var (x, z, radius) in TerrainTiles.Cover(brush, (x, z) => raise.ContainsKey((x, z))))
+    {
+      tiles.Add((x, z, radius, target));
+    }
+
+    return (tiles, fill, Mathf.CeilToInt(fill * StonePerCubicMetre * costFactor - 0.001f));
+  }
+}
+
+/// <summary>
+/// With the depth lock on, a pickaxe hit that reaches into the pinned frame is replaced by edits that
+/// dig the same as the game's, but only inside the frame and never below the target (decision 0016).
+/// </summary>
+/// <remarks>
+/// <para>
+/// A pickaxe hit spawns a terrain op on the attacker's own client (<c>Attack.SpawnOnHitTerrain</c>),
+/// which lowers ground with a falloff (<c>TerrainComp.RaiseTerrain</c> with a negative delta). Its
+/// settings travel as a prefab hash, so they can't be changed per hit; instead the hit is worked out
+/// here vertex by vertex, as the game would, and sent as single-vertex level tiles, each at the height
+/// the vertex should end at. The hit's own effects and any item it drops still happen.
+/// </para>
+/// <para>
+/// Hits that don't reach the frame are left to the game. Vertices outside the frame are never
+/// touched by a hit that does, so the frame's edge stays a straight wall.
+/// </para>
+/// </remarks>
+internal static class DepthLock
+{
+  /// <summary>True when it took the op over; the game's own Awake must not run then.</summary>
+  public static bool TakeOver(TerrainOp op)
+  {
+    if (TerrainOp.m_forceDisableTerrainOps || TerrainTiles.IsTile(op) || Controls.Current?.LockedDepth is not { } floor)
+    {
+      return false;
+    }
+
+    var settings = op.m_settings;
+    var player = Player.m_localPlayer;
+    if (!settings.m_raise || settings.m_raiseDelta >= 0f || settings.m_level || player == null
+        || player.GetRightItem()?.m_shared.m_skillType != Skills.SkillType.Pickaxes)
+    {
+      return false;
+    }
+
+    var frame = Controls.Current.Frame;
+    var position = op.transform.position;
+    var radius = settings.m_raiseRadius;
+    var reach = Mathf.CeilToInt(radius);
+    int cx = Mathf.RoundToInt(position.x), cz = Mathf.RoundToInt(position.z);
+    var touches = false;
+    for (var z = cz - reach; z <= cz + reach && !touches; z++)
+    {
+      for (var x = cx - reach; x <= cx + reach && !touches; x++)
+      {
+        touches = frame.Contains(x, z);
+      }
+    }
+
+    if (!touches)
+    {
+      return false;
+    }
+
+    var tiles = new List<(int, int, int, float)>();
+    for (var z = cz - reach; z <= cz + reach; z++)
+    {
+      for (var x = cx - reach; x <= cx + reach; x++)
+      {
+        // The same falloff as the game's RaiseTerrain.
+        var strength = 1f;
+        if (!settings.m_square)
+        {
+          var distance = Vector2.Distance(new Vector2(cx, cz), new Vector2(x, z));
+          if (distance > radius)
+          {
+            continue;
+          }
+
+          if (settings.m_raisePower > 0f)
+          {
+            strength = Mathf.Pow(1f - distance / radius, settings.m_raisePower);
+          }
+        }
+
+        if (!frame.Contains(x, z) || Probe.At(x, z) is not { } ground)
+        {
+          continue;
+        }
+
+        var wanted = Math.Max(position.y + settings.m_raiseDelta * strength, floor);
+        if (wanted < ground.Height - 0.01f)
+        {
+          tiles.Add((x, z, 0, wanted));
+        }
+      }
+    }
+
+    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, int.MaxValue));
+    op.OnPlaced();
+    UnityEngine.Object.Destroy(op.gameObject);
+    return true;
   }
 }
 
