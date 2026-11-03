@@ -116,6 +116,14 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   a `Bkg2` background beside `selected_piece` (icon, name, description, snapping hint) and
   `requirements`. The piece menu is `BuildHud/bar/SelectionWindow`. Hide the whole `SelectedInfo`, or
   the empty background stays (2026-11-03).
+- **Key hint bar**: `KeyHints.m_buildHints` / `m_combatHints`; the keyboard hints are under
+  `BuildHints/Keyboard`, one child per hint (`Place`: label + `key_bkg/Key`; `Copy`: two keys with a
+  "+"; `rotate`: the mouse-wheel icon). Jotunn's `KeyHintManager` only uses a left-hand item if
+  `IsWeapon()`, which a shield isn't (2026-11-03).
+- **Clients know the world's uid**: the server sends name, seed, seed name and uid in the peer info, so
+  `ZNet.World.m_uid` works on clients; `ZNet.GetWorldUID()` reads the host's `m_world` (2026-11-03).
+- **`Player.m_customData`** is saved with the character (`Player.Save`) and read back on spawn: a place
+  for per-character mod state (2026-11-03).
 - **The build HUD's texts are TextMeshPro** (`Hud.m_buildSelection` is a `TMP_Text`); touching them
   needs a reference to the game's `Unity.TextMeshPro.dll` (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by

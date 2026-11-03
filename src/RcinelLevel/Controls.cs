@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using BepInEx.Logging;
 using UnityEngine;
@@ -40,6 +41,8 @@ internal sealed class Controls : IDisposable
   private float _measuredAt;
   private (float Fill, int Stone)? _nextStroke;
   private float _plannedAt;
+  private Player? _player;
+  private int _savedRevision = -1;
 
   public Controls(Settings settings, ManualLogSource logger)
   {
@@ -47,6 +50,7 @@ internal sealed class Controls : IDisposable
     _logger = logger;
     _overlay = new ReachOverlay(logger);
     Current = this;
+    settings.Reloaded += ToolHints.Invalidate;
   }
 
   /// <summary>The one instance, for <see cref="LevelAction"/>, which the game creates.</summary>
@@ -65,12 +69,15 @@ internal sealed class Controls : IDisposable
   public void Update()
   {
     ScrollPatch.Suppress = false;
+    ToolHints.Current = null;
     var player = Player.m_localPlayer;
     if (player == null || player.IsDead())
     {
       Hide();
       return;
     }
+
+    KeepFrame(player);
 
     var probe = Items.IsProbe(player.GetLeftItem());
     var hoe = Items.IsLevelHoe(player.GetRightItem());
@@ -124,6 +131,87 @@ internal sealed class Controls : IDisposable
     }
 
     _readout.Show(Describe(probe, hoe, pickaxe, player));
+    ToolHints.Current = probe || hoe ? Hints(probe, hoe) : null;
+  }
+
+  /// <summary>
+  /// Keeps the frame with the character, one per world, so it is there again after leaving and joining
+  /// (owner, 2026-11-03). It goes into the character's own custom data, which the game saves with the
+  /// character; the key holds the world's id, which clients get from the server too (<c>ZNet.World</c>).
+  /// </summary>
+  private void KeepFrame(Player player)
+  {
+    var world = ZNet.World;
+    if (world is null)
+    {
+      return;
+    }
+
+    var key = $"RcinelLevel.Frame.{world.m_uid}";
+    if (!ReferenceEquals(player, _player))
+    {
+      // A character entering a world: take its frame for this world, if it has one.
+      _player = player;
+      if (player.m_customData.TryGetValue(key, out var saved) && !_frame.Load(saved))
+      {
+        _logger.LogWarning($"The saved frame for this world couldn't be read and was dropped: {saved}");
+      }
+
+      _savedRevision = _frame.Revision;
+      return;
+    }
+
+    if (_frame.Placed && _frame.Revision != _savedRevision)
+    {
+      player.m_customData[key] = _frame.Save();
+      _savedRevision = _frame.Revision;
+    }
+  }
+
+  /// <summary>The controls for the key hint bar, in the order the tools are used.</summary>
+  private List<(string[] Keys, string Label)> Hints(bool probe, bool hoe)
+  {
+    var hints = new List<(string[], string)>();
+    if (hoe)
+    {
+      hints.Add(([ZInput.instance.GetBoundKeyString("Attack", emptyStringOnMissing: false)], "Fill"));
+    }
+
+    if (probe)
+    {
+      hints.Add(([KeyName(_settings.CycleShape.Value)], "Shape"));
+      hints.Add(([KeyName(_settings.PinFrame.Value)], _frame.Pinned ? "Unpin" : "Pin"));
+      hints.Add(([KeyName(_settings.LockDepth.Value)], _frame.DepthLocked ? "Unlock pickaxe" : "Lock pickaxe"));
+    }
+
+    hints.Add(([KeyName(_settings.ResizeModifier.Value), "Wheel"], "Size"));
+    hints.Add(([KeyName(_settings.HeightModifier.Value), "Wheel"], "Height"));
+    hints.Add(([KeyName(_settings.PickHeight.Value)], "Take height"));
+    hints.Add(([KeyName(_settings.ResetHeight.Value)], "Probe height"));
+    return hints;
+  }
+
+  /// <summary>"Left Alt" for LeftAlt, "1" for Alpha1: what the key says on the keyboard.</summary>
+  private static string KeyName(KeyCode key)
+  {
+    var name = key.ToString();
+    if (name.StartsWith("Alpha", StringComparison.Ordinal) && name.Length == 6)
+    {
+      return name.Substring(5);
+    }
+
+    var spaced = new StringBuilder();
+    foreach (var c in name)
+    {
+      if (char.IsUpper(c) && spaced.Length > 0)
+      {
+        spaced.Append(' ');
+      }
+
+      spaced.Append(c);
+    }
+
+    return spaced.ToString();
   }
 
   /// <summary>Called when the level hoe's piece is placed at <paramref name="point"/>.</summary>
@@ -361,20 +449,8 @@ internal sealed class Controls : IDisposable
       text.Append("The ground under the frame isn't loaded yet.");
     }
 
-    if (pickaxe && !probe && !hoe)
-    {
-      return text.ToString();
-    }
-
-    text.AppendLine().Append("<size=14>");
-    if (probe)
-    {
-      text.Append($"[{_settings.CycleShape.Value}] shape   [{_settings.PinFrame.Value}] pin   [{_settings.LockDepth.Value}] lock pickaxe   ");
-    }
-
-    text.Append($"[{_settings.ResizeModifier.Value} + wheel] size   [{_settings.HeightModifier.Value} + wheel] height   ")
-      .Append($"[{_settings.PickHeight.Value}] take height   [{_settings.ResetHeight.Value}] probe height");
-    return text.Append("</size>").ToString();
+    // The controls are in the key hint bar at the bottom (ToolHints), as the game shows its own.
+    return text.ToString();
   }
 
   private void Hide()

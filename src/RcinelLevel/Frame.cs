@@ -213,6 +213,51 @@ internal sealed class Frame
     }
   }
 
+  /// <summary>
+  /// The frame as one line of text, to keep with the character per world (<see cref="Controls"/>):
+  /// version, shape, centre, radius, the rectangle's sides, pinned, the pinned balance, the height set by
+  /// hand and the depth lock. Invariant culture, so it reads back the same on every PC.
+  /// </summary>
+  public string Save() => string.Join(";", new[]
+  {
+    "1", ((int)Shape).ToString(Inv), CenterX.ToString(Inv), CenterZ.ToString(Inv), Radius.ToString(Inv),
+    North.ToString(Inv), East.ToString(Inv), South.ToString(Inv), West.ToString(Inv), Pinned ? "1" : "0",
+    PinnedBalance?.ToString("R", Inv) ?? "", ManualHeight?.ToString("R", Inv) ?? "", DepthLocked ? "1" : "0",
+  });
+
+  /// <summary>Restores a frame written by <see cref="Save"/>; false (and nothing changed) if it can't be read.</summary>
+  public bool Load(string text)
+  {
+    var p = text.Split(';');
+    if (p.Length != 13 || p[0] != "1")
+    {
+      return false;
+    }
+
+    try
+    {
+      var shape = (FrameShape)int.Parse(p[1], Inv);
+      int x = int.Parse(p[2], Inv), z = int.Parse(p[3], Inv), radius = int.Parse(p[4], Inv);
+      int north = int.Parse(p[5], Inv), east = int.Parse(p[6], Inv), south = int.Parse(p[7], Inv), west = int.Parse(p[8], Inv);
+      float? balance = p[10].Length > 0 ? float.Parse(p[10], Inv) : null;
+      float? manual = p[11].Length > 0 ? float.Parse(p[11], Inv) : null;
+      (Shape, CenterX, CenterZ, Radius, North, East, South, West) = (shape, x, z, radius, north, east, south, west);
+      Pinned = p[9] == "1";
+      PinnedBalance = Pinned ? balance : null;
+      ManualHeight = manual;
+      DepthLocked = Pinned && p[12] == "1";
+      Placed = true;
+      Revision++;
+      return true;
+    }
+    catch (System.FormatException)
+    {
+      return false;
+    }
+  }
+
+  private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
   /// <summary>A short description for the readout, such as "Rectangle 9 × 5 m".</summary>
   public string Describe()
   {
