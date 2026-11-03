@@ -60,14 +60,15 @@ internal sealed class Settings : IDisposable
       new ConfigDescription(
         "How far the level hoe reaches from where you aim, in metres: 2 levels a square of 5 by 5 m per stroke, cut off at the frame's edge.",
         new AcceptableValueRange<int>(0, 8)));
-    // A quarter of Raise ground's rate, and the first metre free: at the full rate the owner found the
-    // price grew too fast, and evening out almost flat ground should cost nothing (2026-11-03).
+    // A quarter of Raise ground's rate, and the first bit of height free: at the full rate the owner found
+    // the price grew too fast, and evening out almost flat ground should cost nothing (2026-11-03).
     StoneCost = config.Bind("Server", "Stone cost", 0.25f,
       new ConfigDescription(
         "The level hoe pays for the ground it raises in stone, at the rate the game's own Raise ground costs per cubic metre, times this. 0 makes it free. Synced from the server.",
         new AcceptableValueRange<float>(0f, 10f),
         new ConfigurationManagerAttributes { IsAdminOnly = true }));
-    FreeDepth = config.Bind("Server", "Free fill depth", 1f,
+    // 1 m was too generous (owner, 2026-11-03): 0.25 m evens out small bumps, not real slopes.
+    FreeDepth = config.Bind("Server", "Free fill depth", 0.25f,
       new ConfigDescription(
         "Raising a spot by up to this many metres costs nothing; only the height above it is paid for. Lets almost flat ground be levelled for free. Synced from the server.",
         new AcceptableValueRange<float>(0f, 8f),

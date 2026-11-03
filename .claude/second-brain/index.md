@@ -34,3 +34,4 @@ status: active
 - [[0015-hoe-only-fills-and-costs-stone]]: the level hoe only raises, paid in stone at Raise ground's rate
 - [[0016-pickaxe-depth-lock]]: a lock keeps the pickaxe inside the frame and above the target
 - [[0017-icons-rendered-from-the-models]]: item icons are Valheim-style renders of the models
+- [[0018-red-overlay-for-unreachable-ground]]: the probe shows ground beyond the ±8 m limit in red

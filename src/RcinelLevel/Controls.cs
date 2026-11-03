@@ -35,6 +35,7 @@ internal sealed class Controls : IDisposable
   private readonly Frame _frame = new();
   private readonly FrameView _view = new();
   private readonly Readout _readout = new();
+  private readonly ReachOverlay _overlay;
   private Measurement? _measurement;
   private int _measuredRevision = -1;
   private float _measuredAt;
@@ -45,6 +46,7 @@ internal sealed class Controls : IDisposable
   {
     _settings = settings;
     _logger = logger;
+    _overlay = new ReachOverlay(logger);
     Current = this;
   }
 
@@ -113,6 +115,15 @@ internal sealed class Controls : IDisposable
     }
 
     _view.Show(_frame, Target, brush);
+    if (probe && _measurement is { } measured)
+    {
+      _overlay.Show(measured);
+    }
+    else
+    {
+      _overlay.Hide();
+    }
+
     _readout.Show(Describe(probe, hoe, pickaxe, player));
   }
 
@@ -317,7 +328,17 @@ internal sealed class Controls : IDisposable
       text.Append($"Target {target:0.00} m ({TargetSource})").Append($" · dig {m.Cut:0} m³ · fill {m.Fill:0} m³");
       if (m.OutOfReach > 0)
       {
-        text.Append($" · {m.OutOfReach} points beyond the game's ±{Probe.MaxChange:0} m limit");
+        // The game moves no vertex more than 8 m from the generated ground; the probe shows them in red.
+        text.AppendLine().Append($"Beyond the game's ±{Probe.MaxChange:0} m limit (red on the ground):");
+        if (m.TooLow > 0)
+        {
+          text.Append($" {m.TooLow} m² can't be raised that far");
+        }
+
+        if (m.TooHigh > 0)
+        {
+          text.Append(m.TooLow > 0 ? "," : string.Empty).Append($" {m.TooHigh} m² can't be dug that deep");
+        }
       }
 
       if (hoe && _nextStroke is { } next)
@@ -360,6 +381,7 @@ internal sealed class Controls : IDisposable
   private void Hide()
   {
     _view.Hide();
+    _overlay.Hide();
     _readout.Hide();
   }
 

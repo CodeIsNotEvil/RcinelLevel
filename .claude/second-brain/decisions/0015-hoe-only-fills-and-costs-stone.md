@@ -35,3 +35,5 @@ ground should be free. Now each spot's first metre of raising is free (`Free fil
 setting) and only the height above it is paid, at a quarter of Raise ground's rate (`Stone cost`
 default 0.25). A per-spot allowance rather than "free if the stroke is shallow", so the price grows
 smoothly instead of jumping at 1 m.
+
+**Free depth 0.25 m (2026-11-03)**: a metre was too generous (owner); `Free fill depth` defaults to 0.25.

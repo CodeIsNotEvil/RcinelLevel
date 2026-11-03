@@ -230,10 +230,17 @@ internal sealed class Frame
 /// <param name="Balance">The height where cut equals fill: the mean of the vertices' heights.</param>
 /// <param name="Cut">Cubic metres above the target height that levelling digs away.</param>
 /// <param name="Fill">Cubic metres below the target height that levelling raises.</param>
-/// <param name="OutOfReach">Vertices the game's ±8 m limit keeps from reaching the target.</param>
+/// <param name="TooLow">Vertices that can't be raised to the target: the game's +8 m limit stops them.</param>
+/// <param name="TooHigh">Vertices that can't be dug down to the target: the game's -8 m limit stops them.</param>
 /// <param name="Loaded">Vertices measured; less than <paramref name="Expected"/> where the ground is too far away to be loaded.</param>
+/// <param name="Heights">The ground at every vertex of the frame's bounds, from (<paramref name="MinX"/>, <paramref name="MinZ"/>); NaN where it isn't loaded or isn't in the frame.</param>
+/// <param name="Unreachable">The vertices counted in <paramref name="TooLow"/> and <paramref name="TooHigh"/>, for the probe's red overlay.</param>
 internal readonly record struct Measurement(
-  float Balance, float Cut, float Fill, int OutOfReach, int Loaded, int Expected, float Lowest, float Highest);
+  float Balance, float Cut, float Fill, int TooLow, int TooHigh, int Loaded, int Expected, float Lowest, float Highest,
+  int MinX, int MinZ, float[,] Heights, IReadOnlyList<(int X, int Z)> Unreachable)
+{
+  public int OutOfReach => TooLow + TooHigh;
+}
 
 /// <summary>Reads the ground under a frame (decision 0002).</summary>
 internal static class Probe
@@ -302,7 +309,16 @@ internal static class Probe
     }
 
     var seen = new bool[width, depth];
-    var heights = new List<(float Height, float Generated)>(expected);
+    var grid = new float[width, depth];
+    for (var gz = 0; gz < depth; gz++)
+    {
+      for (var gx = 0; gx < width; gx++)
+      {
+        grid[gx, gz] = float.NaN;
+      }
+    }
+
+    var heights = new List<(int X, int Z, float Height, float Generated)>(expected);
     foreach (var heightmap in Heightmap.s_heightmaps)
     {
       Read(heightmap);
@@ -315,7 +331,7 @@ internal static class Probe
 
     double sum = 0;
     float lowest = float.MaxValue, highest = float.MinValue;
-    foreach (var (height, _) in heights)
+    foreach (var (_, _, height, _) in heights)
     {
       sum += height;
       lowest = Math.Min(lowest, height);
@@ -325,8 +341,9 @@ internal static class Probe
     var balance = (float)(sum / heights.Count);
     var level = target ?? balance;
     float cut = 0, fill = 0;
-    var outOfReach = 0;
-    foreach (var (height, generated) in heights)
+    int tooLow = 0, tooHigh = 0;
+    var unreachable = new List<(int, int)>();
+    foreach (var (x, z, height, generated) in heights)
     {
       if (height > level)
       {
@@ -337,13 +354,19 @@ internal static class Probe
         fill += level - height;
       }
 
-      if (Math.Abs(level - generated) > MaxChange + 0.01f)
+      if (level - generated > MaxChange + 0.01f)
       {
-        outOfReach++;
+        tooLow++;
+        unreachable.Add((x, z));
+      }
+      else if (generated - level > MaxChange + 0.01f)
+      {
+        tooHigh++;
+        unreachable.Add((x, z));
       }
     }
 
-    return new Measurement(balance, cut, fill, outOfReach, heights.Count, expected, lowest, highest);
+    return new Measurement(balance, cut, fill, tooLow, tooHigh, heights.Count, expected, lowest, highest, minX, minZ, grid, unreachable);
 
     void Read(Heightmap heightmap)
     {
@@ -386,7 +409,8 @@ internal static class Probe
           // How far the vertex has already been moved from the generated ground; no compiler means
           // nobody has changed the terrain of this heightmap.
           var change = compiler is null ? 0f : compiler.m_levelDelta[index] + compiler.m_smoothDelta[index];
-          heights.Add((height, height - change));
+          heights.Add((x, z, height, height - change));
+          grid[x - minX, z - minZ] = height;
         }
       }
     }
