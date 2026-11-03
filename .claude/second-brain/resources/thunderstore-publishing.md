@@ -17,11 +17,13 @@ package format page and the upload page's validator) when the first package is b
   `BepInEx/plugins/<Team>-<Name>/`.
 - `manifest.json`: `name` (letters, digits and `_` only, so `RcinelLevel`), `version_number`
   (`X.Y.Z`), `website_url` (the GitHub repository), `description` (short, max 250 characters, *to
-  check*) and `dependencies` as `Team-Name-X.Y.Z` strings: `denikson-BepInExPack_Valheim-…` and,
-  if used, `ValheimModding-Jotunn-…`. Written without a BOM ([[valheim-modding]], gotchas).
+  check*) and `dependencies` as `Team-Name-X.Y.Z` strings: `denikson-BepInExPack_Valheim-…` and
+  `ValheimModding-Jotunn-…` ([[0004-jotunn]]). Written without a BOM ([[valheim-modding]], gotchas).
 - A version can't be uploaded twice or replaced (*to check*), so a mistake costs a new version.
 - The package lives under a Thunderstore **team**, whose name is the `<Team>` part of the package id.
-  Which team name the owner wants is open ([[rcinellevel]]).
+  The owner signed in to Thunderstore with GitHub as CodeIsNotEvil and releases under that name
+  (2026-11-03), so the package is `CodeIsNotEvil-RcinelLevel`. A team of that name has to exist
+  (Thunderstore's team settings) before the first upload; *to check* whether it already does.
 
 ## How the owner's other projects release (MyMonoRepo decision 0008, RcinelTranslate)
 - One version, in one place (for .NET: `<Version>` in `Directory.Build.props`), and the manifest
@@ -42,8 +44,7 @@ package format page and the upload page's validator) when the first package is b
   a server.
 - The Thunderstore README says the mod sets `Game.isModded` (achievements) and whether the server
   and every player need it.
-- Icon at 256×256, rendered from an SVG like the owner's other logos (MyMonoRepo
-  `Scripts/text_logo.py`, accent `#DE5833`, Kode Mono), if the owner wants the same look.
+- Icon: `package/icon.png`, 256×256, rendered from `assets/logo/rcinellevel.svg` (done 2026-11-03).
 - MIT license file in the repository, matching the owner's other apps (to confirm).
 
 Related: [[rcinellevel]], [[valheim-modding]], [[index]]
