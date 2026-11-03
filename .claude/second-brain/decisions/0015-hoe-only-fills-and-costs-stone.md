@@ -29,3 +29,9 @@ summed on the 1 m grid, the way `RaiseTerrain` applies them); to check against t
 build menu shows no requirement for the piece, since the price depends on the ground.
 
 Related: [[0014-hoe-levels-a-brush-inside-the-frame]], [[0016-pickaxe-depth-lock]]
+
+**Cheaper 2026-11-03**, after the owner's test: the price grew too fast and evening out almost flat
+ground should be free. Now each spot's first metre of raising is free (`Free fill depth`, server
+setting) and only the height above it is paid, at a quarter of Raise ground's rate (`Stone cost`
+default 0.25). A per-spot allowance rather than "free if the stroke is shallow", so the price grows
+smoothly instead of jumping at 1 m.

@@ -138,8 +138,12 @@ internal static class Stroke
   public static float StonePerCubicMetre { get; set; } = 1f;
 
   /// <summary>What a stroke would raise: the tiles, the cubic metres and the stone it costs.</summary>
+  /// <remarks>
+  /// Each spot's first <paramref name="freeDepth"/> metres of raising are free; only what lies above is
+  /// paid for, so evening out almost flat ground costs nothing and the price grows smoothly from there.
+  /// </remarks>
   public static (List<(int X, int Z, int Radius, float Height)> Tiles, float Fill, int Stone) Plan(
-    Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor)
+    Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor, float freeDepth)
   {
     // The game clamps every vertex to 8 m from the generated ground, so nothing beyond is raised or paid.
     var raise = new Dictionary<(int, int), float>();
@@ -160,10 +164,11 @@ internal static class Stroke
       }
     }
 
-    var fill = 0f;
+    float fill = 0f, paid = 0f;
     foreach (var amount in raise.Values)
     {
       fill += amount;
+      paid += Math.Max(0f, amount - freeDepth);
     }
 
     // Where the limit lowers a vertex's top, a tile at the target still ends at the limit: the game clamps.
@@ -173,7 +178,7 @@ internal static class Stroke
       tiles.Add((x, z, radius, target));
     }
 
-    return (tiles, fill, Mathf.CeilToInt(fill * StonePerCubicMetre * costFactor - 0.001f));
+    return (tiles, fill, Mathf.CeilToInt(paid * StonePerCubicMetre * costFactor - 0.001f));
   }
 }
 

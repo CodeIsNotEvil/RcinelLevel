@@ -60,10 +60,17 @@ internal sealed class Settings : IDisposable
       new ConfigDescription(
         "How far the level hoe reaches from where you aim, in metres: 2 levels a square of 5 by 5 m per stroke, cut off at the frame's edge.",
         new AcceptableValueRange<int>(0, 8)));
-    StoneCost = config.Bind("Server", "Stone cost", 1f,
+    // A quarter of Raise ground's rate, and the first metre free: at the full rate the owner found the
+    // price grew too fast, and evening out almost flat ground should cost nothing (2026-11-03).
+    StoneCost = config.Bind("Server", "Stone cost", 0.25f,
       new ConfigDescription(
         "The level hoe pays for the ground it raises in stone, at the rate the game's own Raise ground costs per cubic metre, times this. 0 makes it free. Synced from the server.",
         new AcceptableValueRange<float>(0f, 10f),
+        new ConfigurationManagerAttributes { IsAdminOnly = true }));
+    FreeDepth = config.Bind("Server", "Free fill depth", 1f,
+      new ConfigDescription(
+        "Raising a spot by up to this many metres costs nothing; only the height above it is paid for. Lets almost flat ground be levelled for free. Synced from the server.",
+        new AcceptableValueRange<float>(0f, 8f),
         new ConfigurationManagerAttributes { IsAdminOnly = true }));
     OpsPerFrame = config.Bind("Performance", "Terrain edits per frame", 8,
       new ConfigDescription(
@@ -73,15 +80,16 @@ internal sealed class Settings : IDisposable
     // Starting points from the game's own prefabs (read with UnityPy, 2026-11-03). The probe sits under
     // the torch's attach point, where the torch's rod runs along +Z from the hand: +90° about X turns the
     // model's +Y (handle up) onto it. The hoe's model sits under the game hoe's "visual", whose handle
-    // runs along Z with the blade towards -Y and the hand at z = -0.51: (-90, 0, 180) puts the head at +Z
-    // and the blade on the same side. Tuned in the game from there (decision 0011).
+    // runs along Z with the blade towards -Y and the hand at z = -0.51; the hoe's rotation was then
+    // corrected from the owner's test. Tuned in the game from there (decision 0011).
     ProbePosition = config.Bind("Model placement", "Probe position", Vector3.zero,
       "Offset of the probe's model in the hand, in metres. Applied when the file is saved; re-equip to see it.");
     ProbeRotation = config.Bind("Model placement", "Probe rotation", new Vector3(90f, 0f, 0f),
       "Rotation of the probe's model in the hand, in degrees (x, y, z).");
     HoePosition = config.Bind("Model placement", "Level hoe position", new Vector3(0f, 0f, -0.51f),
       "Offset of the level hoe's model in the hand, in metres.");
-    HoeRotation = config.Bind("Model placement", "Level hoe rotation", new Vector3(-90f, 0f, 180f),
+    // (-90, 0, 180) held it upside down (owner's test, 2026-11-03); turned end over end about the grip.
+    HoeRotation = config.Bind("Model placement", "Level hoe rotation", new Vector3(90f, 0f, 180f),
       "Rotation of the level hoe's model in the hand, in degrees (x, y, z).");
 
     try
@@ -109,6 +117,7 @@ internal sealed class Settings : IDisposable
   public ConfigEntry<KeyCode> ResetHeight { get; }
   public ConfigEntry<KeyCode> LockDepth { get; }
   public ConfigEntry<float> StoneCost { get; }
+  public ConfigEntry<float> FreeDepth { get; }
   public ConfigEntry<float> HeightStep { get; }
   public ConfigEntry<int> MaxRadius { get; }
   public ConfigEntry<int> HoeBrush { get; }

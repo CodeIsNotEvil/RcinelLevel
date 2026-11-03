@@ -106,7 +106,7 @@ internal sealed class Controls : IDisposable
     var brush = hoe ? Brush(player) : null;
     if (brush is { } b && Target is { } target && Time.time - _plannedAt > 0.25f)
     {
-      var plan = Stroke.Plan(_frame, b, target, _settings.StoneCost.Value);
+      var plan = Stroke.Plan(_frame, b, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
       _nextStroke = (plan.Fill, plan.Stone);
       _plannedAt = Time.time;
     }
@@ -152,7 +152,7 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    var (tiles, fill, stone) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value);
+    var (tiles, fill, stone) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
     if (tiles.Count == 0)
     {
       player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");

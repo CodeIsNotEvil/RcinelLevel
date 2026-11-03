@@ -35,3 +35,7 @@ Related: [[0009-blender-models-loaded-at-runtime]], [[0007-recipes]], [[rcinelle
 **Hoe redesigned 2026-11-03**: the owner wanted the head "attached straight like a spade or a shovel".
 It is now a square-mouth shovel: the flint blade continues the haft, with raised flint side walls and
 a wooden straightedge across its back. Icons: [[0017-icons-rendered-from-the-models]].
+
+**Hoe turned over 2026-11-03**: the owner saw it upside down in the hand. The default rotation went
+from (-90, 0, 180) to (90, 0, 180), end over end about the grip. If the blade then faces the wrong
+way, (90, 0, 0) turns it about the handle instead; both are config values that apply while playing.
