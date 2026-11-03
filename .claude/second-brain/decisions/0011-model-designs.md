@@ -31,3 +31,7 @@ the game. The owner hasn't seen the models in the game yet; the previews in
 `assets/models/previews/` are what they were judged by.
 
 Related: [[0009-blender-models-loaded-at-runtime]], [[0007-recipes]], [[rcinellevel]]
+
+**Hoe redesigned 2026-11-03**: the owner wanted the head "attached straight like a spade or a shovel".
+It is now a square-mouth shovel: the flint blade continues the haft, with raised flint side walls and
+a wooden straightedge across its back. Icons: [[0017-icons-rendered-from-the-models]].

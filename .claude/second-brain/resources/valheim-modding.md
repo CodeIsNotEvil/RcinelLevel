@@ -102,6 +102,12 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
 - **MSBuild item metadata doesn't expand inside a property function**: `%(Folder)` inside
   `$([System.IO.Path]::Combine(...))` in an item transform created a folder literally named
   `%(Folder)`. One `Copy` per destination folder instead (2026-11-03).
+- **`mud_road_v2` is the hoe's path tool, not level ground**: the log showed `level False, smooth True,
+  paint Dirt` (2026-11-03). RcinelLevel only uses it as a base for its piece and tiles and overrides
+  every setting, so it didn't matter, but don't take the name for what it does.
+- **A pickaxe hit's terrain op is spawned on the attacker's client** (`Attack.SpawnOnHitTerrain`, after
+  the ward and no-build checks), so a prefix on `TerrainOp.Awake` sees it before it is sent on
+  (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by
   an MIT one (2026-09-30). Matters if RcinelLevel ever ships a library inside its package.
 

@@ -25,8 +25,8 @@ depend on. The rules below come from the owner's other repositories, CodeIsNotEv
   `Frame.cs` (the frame and the probe's measurement), `Leveling.cs` (tiling and levelling),
   `Controls.cs` and `FrameView.cs` (input, readout, the frame drawn in the world), `Patches.cs`
   (Harmony), `Settings.cs` (the config file), `PluginFiles.cs` (models and icons next to the DLL).
-- `assets/`: the logo and item icons. The SVGs are the source; `assets/README.md` says how the PNGs
-  are rendered. `scripts/text_logo.py` makes the logo.
+- `assets/`: the logo (SVG source, `scripts/text_logo.py`), the item icons and the models (both made by
+  `models/build.py`). `assets/README.md` says how each is rendered.
 - `package/`: the files of the Thunderstore package that aren't built (`icon.png` so far).
 - `models/build.py`: builds the 3D models in Blender (5.2, headless) and exports them to
   `assets/models/` (OBJ meshes, one PNG atlas, previews). The script is the source; `models/README.md`

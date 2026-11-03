@@ -29,3 +29,5 @@ control. A live target: drifts. A round brush: its edge would leave a staircase 
 the brush the work. The brush can't be resized in the game yet, only in the config file.
 
 Related: [[0006-probe-area-set-by-player]], [[0012-controls]], [[terrain-and-multiplayer]]
+
+**Changed 2026-11-03** by [[0015-hoe-only-fills-and-costs-stone]]: the brush only raises, and costs stone.

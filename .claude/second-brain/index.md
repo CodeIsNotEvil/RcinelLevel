@@ -31,3 +31,6 @@ status: active
 - [[0012-controls]]: the probe picks the shape; modifier + scroll resizes and sets the height
 - [[0013-off-hand-through-a-patch]]: the probe (a torch clone as a left-hand shield) and the level hoe share the hands
 - [[0014-hoe-levels-a-brush-inside-the-frame]]: the hoe levels a brush where you aim, inside the frame, to the target fixed at pinning
+- [[0015-hoe-only-fills-and-costs-stone]]: the level hoe only raises, paid in stone at Raise ground's rate
+- [[0016-pickaxe-depth-lock]]: a lock keeps the pickaxe inside the frame and above the target
+- [[0017-icons-rendered-from-the-models]]: item icons are Valheim-style renders of the models

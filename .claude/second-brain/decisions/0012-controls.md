@@ -57,3 +57,5 @@ Keys the game leaves free: B, H, I, J, K, L, N, O, P, U, Y, Z.
 **Keys follow the keyboard layout (2026-11-03).** In the first test `Y` did nothing on the owner's
 German keyboard: Valheim's Input System reads keys by their US position, where QWERTZ has Z. Letters
 and digits in the config now mean the key that types them on the player's layout (`Keys.cs`).
+
+**`L` added 2026-11-03**: lock the pickaxe's depth to the frame ([[0016-pickaxe-depth-lock]]).

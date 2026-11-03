@@ -74,7 +74,12 @@ on GitHub). No code yet.
   cycling didn't (keyboard layout), the frame was too small, levelling the whole frame was too much,
   and overlapping tiles left jagged edges. Fixed the same day ([[0014-hoe-levels-a-brush-inside-the-frame]]).
 
+- Third round (2026-11-03): shovel-like hoe head, icons rendered from the models, the hoe only
+  raises and costs stone, the pickaxe can be locked to the frame ([[0015-hoe-only-fills-and-costs-stone]],
+  [[0016-pickaxe-depth-lock]], [[0017-icons-rendered-from-the-models]]).
+
 ## Open
+- Check the stone rate taken from the game's Raise ground against the game.
 - Resizing the hoe's brush in the game, not only in the config file.
 - How the tools sit in the hand: the owner sends a screenshot after the first test; the placement is
   in the config file and applies while the game runs.
