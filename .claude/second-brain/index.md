@@ -37,3 +37,4 @@ status: active
 - [[0018-red-overlay-for-unreachable-ground]]: the probe shows ground beyond the ±8 m limit in red
 - [[0019-level-hoe-upgrades]]: the level hoe upgrades three times, for durability
 - [[0020-hints-in-the-key-bar-and-frame-kept-per-world]]: controls in the key hint bar; the frame kept per world with the character
+- [[0021-dev-commands]]: `rcinellevel_nostone` and `rcinellevel_dig`, cheats for the session only

@@ -42,6 +42,7 @@ internal sealed class Controls : IDisposable
   private (float Fill, int Stone)? _nextStroke;
   private float _plannedAt;
   private Player? _player;
+  private ZNet? _session;
   private int _savedRevision = -1;
 
   public Controls(Settings settings, ManualLogSource logger)
@@ -115,7 +116,7 @@ internal sealed class Controls : IDisposable
     var brush = hoe ? Brush(player) : null;
     if (brush is { } b && Target is { } target && Time.time - _plannedAt > 0.25f)
     {
-      var plan = Stroke.Plan(_frame, b, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
+      var plan = Stroke.Plan(_frame, b, target, _settings.StoneCost.Value, _settings.FreeDepth.Value, DevModes.Dig);
       _nextStroke = (plan.Fill, plan.Stone);
       _plannedAt = Time.time;
     }
@@ -147,10 +148,18 @@ internal sealed class Controls : IDisposable
       return;
     }
 
+    // Dev switches end with the session they were used in: a new ZNet is a new world joined, while a
+    // new Player can also just be a respawn after dying.
+    if (!ReferenceEquals(ZNet.instance, _session))
+    {
+      _session = ZNet.instance;
+      DevModes.Reset();
+    }
+
     var key = $"RcinelLevel.Frame.{world.m_uid}";
     if (!ReferenceEquals(player, _player))
     {
-      // A character entering a world: take its frame for this world, if it has one.
+      // A character entering a world (or respawning): take its frame for this world, if it has one.
       _player = player;
       if (player.m_customData.TryGetValue(key, out var saved) && !_frame.Load(saved))
       {
@@ -251,12 +260,12 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    var (tiles, fill, stone, paint) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
+    var (tiles, fill, stone, paint) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value, DevModes.Dig);
     if (tiles.Count == 0 && paint.Count == 0)
     {
       // Ground at or just above the target is done, not a mistake: only say something when there is
       // real digging left (owner, 2026-11-03).
-      if (HighestUnder(brush) > target + Stroke.NearTarget)
+      if (!DevModes.Dig && HighestUnder(brush) > target + Stroke.NearTarget)
       {
         player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");
       }
@@ -265,7 +274,7 @@ internal sealed class Controls : IDisposable
     }
 
     // Raising ground costs stone like the game's Raise ground; no-cost mode (devcommands) skips it.
-    if (stone > 0 && !player.NoCostCheat())
+    if (stone > 0 && !player.NoCostCheat() && !DevModes.NoStone)
     {
       var inventory = player.GetInventory();
       var have = inventory.CountItems(StoneName);
@@ -409,6 +418,11 @@ internal sealed class Controls : IDisposable
       text.Append($" · pickaxe locked at {floor:0.00} m");
     }
 
+    if (DevModes.NoStone || DevModes.Dig)
+    {
+      text.Append(" · dev:").Append(DevModes.NoStone ? " no stone" : "").Append(DevModes.Dig ? " dig" : "");
+    }
+
     text.AppendLine();
     if (_measurement is { } m && Target is { } target)
     {
@@ -431,7 +445,8 @@ internal sealed class Controls : IDisposable
       if (hoe && _nextStroke is { } next)
       {
         var side = 2 * _settings.HoeBrush.Value + 1;
-        text.AppendLine().Append($"Next stroke ({side} × {side} m): fill {next.Fill:0.0} m³ for {next.Stone} stone")
+        var price = DevModes.NoStone || player.NoCostCheat() ? 0 : next.Stone;
+        text.AppendLine().Append($"Next stroke ({side} × {side} m): fill {next.Fill:0.0} m³ for {price} stone")
           .Append($" · you carry {player.GetInventory().CountItems(StoneName)}");
       }
       else

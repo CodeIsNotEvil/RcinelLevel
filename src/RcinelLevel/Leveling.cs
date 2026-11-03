@@ -170,14 +170,21 @@ internal static class Stroke
 
   /// <summary>What a stroke would raise: the tiles, the cubic metres and the stone it costs.</summary>
   /// <remarks>
+  /// <para>
   /// Each spot's first <paramref name="freeDepth"/> metres of raising are free; only what lies above is
   /// paid for, so evening out almost flat ground costs nothing and the price grows smoothly from there.
+  /// </para>
+  /// <para>
+  /// With <paramref name="dig"/> (the dev command <c>rcinellevel_dig</c>) it also lowers ground above
+  /// the target, down to the game's -8 m limit; only raising is paid for.
+  /// </para>
   /// </remarks>
   public static (List<(int X, int Z, int Radius, float Height)> Tiles, float Fill, int Stone, List<(int X, int Z, float Height)> Paint) Plan(
-    Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor, float freeDepth)
+    Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor, float freeDepth, bool dig = false)
   {
     // The game clamps every vertex to 8 m from the generated ground, so nothing beyond is raised or paid.
     var raise = new Dictionary<(int, int), float>();
+    var lower = new HashSet<(int, int)>();
     // Painted as cleared: what this stroke raises and what already lies at the target, the way the
     // game's level ground leaves the whole levelled patch bare.
     var paint = new List<(int, int, float)>();
@@ -196,6 +203,11 @@ internal static class Stroke
           raise[(x, z)] = top - ground.Height;
           paint.Add((x, z, top));
         }
+        else if (dig && ground.Height - Math.Max(target, ground.Generated - Probe.MaxChange) > 0.02f)
+        {
+          lower.Add((x, z));
+          paint.Add((x, z, target));
+        }
         else if (ground.Height - target <= NearTarget)
         {
           paint.Add((x, z, ground.Height));
@@ -212,7 +224,7 @@ internal static class Stroke
 
     // Where the limit lowers a vertex's top, a tile at the target still ends at the limit: the game clamps.
     var tiles = new List<(int, int, int, float)>();
-    foreach (var (x, z, radius) in TerrainTiles.Cover(brush, (x, z) => raise.ContainsKey((x, z))))
+    foreach (var (x, z, radius) in TerrainTiles.Cover(brush, (x, z) => raise.ContainsKey((x, z)) || lower.Contains((x, z))))
     {
       tiles.Add((x, z, radius, target));
     }

@@ -46,6 +46,7 @@ public sealed class RcinelLevelPlugin : BaseUnityPlugin
     Settings = new Settings(Config, Logger);
     var files = new PluginFiles(Path.GetDirectoryName(Info.Location)!, Logger);
     Texts.Register();
+    DevModes.Register();
     Items.Prepare(files, Settings, Logger);
     PrefabManager.OnVanillaPrefabsAvailable += Items.Create;
     new Harmony(Guid).PatchAll(typeof(RcinelLevelPlugin).Assembly);
