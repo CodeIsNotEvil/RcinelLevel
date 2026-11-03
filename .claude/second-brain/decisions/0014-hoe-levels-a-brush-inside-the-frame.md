@@ -31,3 +31,7 @@ the brush the work. The brush can't be resized in the game yet, only in the conf
 Related: [[0006-probe-area-set-by-player]], [[0012-controls]], [[terrain-and-multiplayer]]
 
 **Changed 2026-11-03** by [[0015-hoe-only-fills-and-costs-stone]]: the brush only raises, and costs stone.
+
+**Grass (2026-11-03)**: a stroke paints the patch it leaves level as cleared dirt, the vertices it
+raised and those already within 0.25 m above the target, which clears the grass like the game's
+level ground does. A locked pickaxe dig paints the ground it opens, as the game's dig does.

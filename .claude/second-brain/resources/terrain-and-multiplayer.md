@@ -48,6 +48,14 @@ Read from the decompiled game (`assembly_valheim.dll`, Unity 6000.0.75f1, 2026-1
 - The game's terrain ops are listed in `ObjectDB.m_terrainOps`, hashed into `m_terrainOpsByHash` by
   `UpdateRegisters`; mods must add theirs there (RcinelLevel's `RegisterTilesPatch`).
 
+- **Paint is a texture blend, and grass follows it.** `PaintCleared` blends each paint-mask texel
+  towards the paint type with a radial falloff (`(1 - d/r)^m_paintExp × m_paintStrength`, or the
+  op's `m_paintCurve`); grass doesn't grow on ground painted as cleared, and the owner resets the grass
+  in the op's radius afterwards. The paint mask lives in the terrain compiler, not the heightmap, so
+  paint ops can overlap without the stale-height problem. RcinelLevel's tiles inherited the path
+  tool's small, soft paint and left grass standing (owner's test, 2026-11-03); strokes now paint
+  every vertex of the levelled patch with a full-strength dirt op.
+
 ## Who owns what
 - Every 2 s `ZDOMan.ReleaseNearbyZDOS` gives each persistent network object near a peer to that peer,
   unless its owner is still near it. The owner of a patch of terrain is therefore usually a player

@@ -160,13 +160,42 @@ internal static class Items
       settings.m_levelOffset = 0f;
       settings.m_raise = false;
       settings.m_smooth = false;
-      // The game's level ground paints the ground as cleared; keep that look, sized to the tile.
-      settings.m_paintRadius = Mathf.Max(radius, 0.5f);
+      // Painting is the paint op's job (TerrainTiles.Paint): the base's own soft, small paint left the
+      // grass standing. A single-vertex tile still reaches both heightmaps on a zone border, since
+      // IsPointInside counts the border as inside.
+      settings.m_paintCleared = false;
       // One sound for the whole frame comes from the placed piece, not one per tile.
       op.m_onPlacedEffect = new EffectList();
       op.m_spawnOnPlaced = null;
       TerrainTiles.Prefabs[radius] = op;
     }
+
+    var paint = PrefabManager.Instance.CreateClonedPrefab(TerrainTiles.PaintName, original.gameObject);
+    Object.DestroyImmediate(paint.GetComponent<Piece>());
+    foreach (Transform child in paint.transform)
+    {
+      Object.DestroyImmediate(child.gameObject);
+    }
+
+    var paintOp = paint.GetComponent<TerrainOp>();
+    var p = paintOp.m_settings;
+    p.m_level = p.m_raise = p.m_smooth = false;
+    p.m_paintCleared = true;
+    p.m_paintType = TerrainModifier.PaintType.Dirt;
+    // Full strength out to the next vertex: (1 - d/r)^0.1 stays above 0.6 until the edge, so a paint op
+    // on every vertex leaves no patch of grass between them.
+    p.m_paintRadius = 1f;
+    p.m_paintStrength = 1f;
+    p.m_paintExp = 0.1f;
+    p.m_paintCurve = null;
+    p.m_paintHeightCheck = false;
+    p.m_addMedianMax = 0f;
+    p.m_centerMultiplicationFactor = 0f;
+    p.m_pointMultiplicationFactor = 0f;
+    p.m_rotation = p.m_sides = false;
+    paintOp.m_onPlacedEffect = new EffectList();
+    paintOp.m_spawnOnPlaced = null;
+    TerrainTiles.Paint = paintOp;
 
     // The menu's ObjectDB exists already; the game's own, in the world, registers them on its Awake
     // through RegisterTilesPatch.

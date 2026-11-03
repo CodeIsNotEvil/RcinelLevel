@@ -25,7 +25,6 @@ internal sealed class Controls : IDisposable
   private const float MeasureInterval = 0.5f;
   private const float AimDistance = 60f;
   private const string StoneName = "$item_stone";
-  private const float NearTarget = 0.25f;
 
   private static readonly int GroundMask = LayerMask.GetMask("terrain");
   private static readonly int AnythingMask = LayerMask.GetMask("terrain", "piece", "piece_nonsolid", "static_solid", "Default", "Default_small");
@@ -164,12 +163,12 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    var (tiles, fill, stone) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
-    if (tiles.Count == 0)
+    var (tiles, fill, stone, paint) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
+    if (tiles.Count == 0 && paint.Count == 0)
     {
       // Ground at or just above the target is done, not a mistake: only say something when there is
       // real digging left (owner, 2026-11-03).
-      if (HighestUnder(brush) > target + NearTarget)
+      if (HighestUnder(brush) > target + Stroke.NearTarget)
       {
         player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");
       }
@@ -191,7 +190,7 @@ internal sealed class Controls : IDisposable
       inventory.RemoveItem(StoneName, stone);
     }
 
-    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, _settings.OpsPerFrame.Value));
+    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, _settings.OpsPerFrame.Value, paint));
     _plannedAt = 0f;
     _logger.LogDebug($"Filling {fill:0.0} m³ around ({Mathf.RoundToInt(point.x)}, {Mathf.RoundToInt(point.z)}) to {target:0.00} m for {stone} stone with {tiles.Count} terrain edits.");
   }

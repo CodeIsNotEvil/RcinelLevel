@@ -112,6 +112,10 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   1 × -0.62; a copy with another texture keeps that unless `mainTextureScale`/`Offset` are reset.
   UnityPy reads materials fully (they have type trees: `obj.object_reader.read_typetree()`), unlike
   MonoBehaviours (2026-11-03).
+- **The build HUD's piece box is `BuildHud/SelectedInfo`** in `IngameGui_HUD.prefab` (bundle `d59cfac`):
+  a `Bkg2` background beside `selected_piece` (icon, name, description, snapping hint) and
+  `requirements`. The piece menu is `BuildHud/bar/SelectionWindow`. Hide the whole `SelectedInfo`, or
+  the empty background stays (2026-11-03).
 - **The build HUD's texts are TextMeshPro** (`Hud.m_buildSelection` is a `TMP_Text`); touching them
   needs a reference to the game's `Unity.TextMeshPro.dll` (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by

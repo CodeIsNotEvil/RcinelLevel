@@ -34,6 +34,15 @@ internal static class TerrainTiles
 
   public static readonly Dictionary<int, TerrainOp> Prefabs = new();
 
+  /// <summary>
+  /// A paint-only op: paints one vertex's ground as cleared dirt at full strength, which also clears
+  /// the grass there, as the game's own levelling does. The tiles don't paint; strokes and locked
+  /// digs paint the ground they leave level with these (owner's test: the grass stayed, 2026-11-03).
+  /// </summary>
+  public static TerrainOp? Paint { get; set; }
+
+  public const string PaintName = "RcinelLevel_Paint";
+
   public static string PrefabName(int radius) => $"RcinelLevel_LevelTile{radius}";
 
   /// <summary>
@@ -106,7 +115,11 @@ internal static class TerrainTiles
   /// Places the tiles, each at its own height, a few per rendered frame, so a large area doesn't
   /// freeze the game. Each one is a terrain op the game applies and sends on like the hoe's own.
   /// </summary>
-  public static IEnumerator Level(List<(int X, int Z, int Radius, float Height)> tiles, int perFrame)
+  /// <remarks>
+  /// <paramref name="paint"/> lists the vertices to paint afterwards. Paint ops read and write the
+  /// terrain compiler's own paint mask, not the heightmap, so they may overlap each other and the tiles.
+  /// </remarks>
+  public static IEnumerator Level(List<(int X, int Z, int Radius, float Height)> tiles, int perFrame, List<(int X, int Z, float Height)>? paint = null)
   {
     var placed = 0;
     foreach (var (x, z, radius, height) in tiles)
@@ -123,9 +136,24 @@ internal static class TerrainTiles
         yield return null;
       }
     }
+
+    if (paint is null || Paint is null)
+    {
+      yield break;
+    }
+
+    foreach (var (x, z, height) in paint)
+    {
+      UnityEngine.Object.Instantiate(Paint.gameObject, new Vector3(x, height, z), Quaternion.identity);
+      if (++placed % perFrame == 0)
+      {
+        yield return null;
+      }
+    }
   }
 
-  public static bool IsTile(TerrainOp op) => op.name.StartsWith("RcinelLevel_LevelTile", StringComparison.Ordinal);
+  public static bool IsTile(TerrainOp op) =>
+    op.name.StartsWith("RcinelLevel_LevelTile", StringComparison.Ordinal) || op.name.StartsWith(PaintName, StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -134,6 +162,9 @@ internal static class TerrainTiles
 /// </summary>
 internal static class Stroke
 {
+  /// <summary>Ground at most this far above the target counts as level: painted, and no complaint.</summary>
+  public const float NearTarget = 0.25f;
+
   /// <summary>Stone per cubic metre the game's own Raise ground costs; measured from it in <see cref="Items"/>.</summary>
   public static float StonePerCubicMetre { get; set; } = 1f;
 
@@ -142,11 +173,14 @@ internal static class Stroke
   /// Each spot's first <paramref name="freeDepth"/> metres of raising are free; only what lies above is
   /// paid for, so evening out almost flat ground costs nothing and the price grows smoothly from there.
   /// </remarks>
-  public static (List<(int X, int Z, int Radius, float Height)> Tiles, float Fill, int Stone) Plan(
+  public static (List<(int X, int Z, int Radius, float Height)> Tiles, float Fill, int Stone, List<(int X, int Z, float Height)> Paint) Plan(
     Frame frame, (int MinX, int MinZ, int MaxX, int MaxZ) brush, float target, float costFactor, float freeDepth)
   {
     // The game clamps every vertex to 8 m from the generated ground, so nothing beyond is raised or paid.
     var raise = new Dictionary<(int, int), float>();
+    // Painted as cleared: what this stroke raises and what already lies at the target, the way the
+    // game's level ground leaves the whole levelled patch bare.
+    var paint = new List<(int, int, float)>();
     for (var z = brush.MinZ; z <= brush.MaxZ; z++)
     {
       for (var x = brush.MinX; x <= brush.MaxX; x++)
@@ -160,6 +194,11 @@ internal static class Stroke
         if (top - ground.Height > 0.02f)
         {
           raise[(x, z)] = top - ground.Height;
+          paint.Add((x, z, top));
+        }
+        else if (ground.Height - target <= NearTarget)
+        {
+          paint.Add((x, z, ground.Height));
         }
       }
     }
@@ -178,7 +217,7 @@ internal static class Stroke
       tiles.Add((x, z, radius, target));
     }
 
-    return (tiles, fill, Mathf.CeilToInt(paid * StonePerCubicMetre * costFactor - 0.001f));
+    return (tiles, fill, Mathf.CeilToInt(paid * StonePerCubicMetre * costFactor - 0.001f), paint);
   }
 }
 
@@ -237,6 +276,7 @@ internal static class DepthLock
     }
 
     var tiles = new List<(int, int, int, float)>();
+    var paint = new List<(int, int, float)>();
     for (var z = cz - reach; z <= cz + reach; z++)
     {
       for (var x = cx - reach; x <= cx + reach; x++)
@@ -266,11 +306,13 @@ internal static class DepthLock
         if (wanted < ground.Height - 0.01f)
         {
           tiles.Add((x, z, 0, wanted));
+          // The game's dig paints the ground it opens; so does this.
+          paint.Add((x, z, wanted));
         }
       }
     }
 
-    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, int.MaxValue));
+    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, int.MaxValue, paint));
     op.OnPlaced();
     UnityEngine.Object.Destroy(op.gameObject);
     return true;

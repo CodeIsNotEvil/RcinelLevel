@@ -71,9 +71,16 @@ internal static class RegisterTilesPatch
   {
     foreach (var tile in TerrainTiles.Prefabs.Values)
     {
-      if (tile != null && !__instance.m_terrainOps.Contains(tile))
+      Add(tile);
+    }
+
+    Add(TerrainTiles.Paint);
+
+    void Add(TerrainOp? op)
+    {
+      if (op != null && !__instance.m_terrainOps.Contains(op))
       {
-        __instance.m_terrainOps.Add(tile);
+        __instance.m_terrainOps.Add(op);
       }
     }
   }
@@ -142,8 +149,11 @@ internal static class NoBuildMenuPatch
 /// HUD stays, and the box comes back for every other build tool.
 /// </summary>
 /// <remarks>
-/// The box is found at run time as the smallest part of the HUD that holds the piece's name, its
-/// description and its icon. If that would also hold the piece menu, only those three are hidden.
+/// The box is <c>BuildHud/SelectedInfo</c> in the game's HUD prefab (read with UnityPy, 2026-11-03):
+/// its dark background <c>Bkg2</c> sits beside <c>selected_piece</c>, which holds name, description
+/// and icon. The first version hid only <c>selected_piece</c> and left the empty background. It is
+/// found as the build HUD's child that holds the piece's name; if that would also hold the piece menu,
+/// only the texts are hidden.
 /// </remarks>
 [HarmonyPatch(typeof(Hud), nameof(Hud.UpdateBuild))]
 internal static class NoPieceBoxPatch
@@ -165,10 +175,15 @@ internal static class NoPieceBoxPatch
   private static GameObject[] Find(Hud hud)
   {
     var parts = new[] { hud.m_buildSelection.transform, hud.m_pieceDescription.transform, hud.m_buildIcon.transform };
-    var box = parts[0].parent;
-    while (box != null && box != hud.m_buildHud.transform && !(parts[1].IsChildOf(box) && parts[2].IsChildOf(box)))
+    var box = parts[0];
+    while (box.parent != null && box.parent != hud.m_buildHud.transform)
     {
       box = box.parent;
+    }
+
+    if (box.parent == null || !parts[1].IsChildOf(box) || !parts[2].IsChildOf(box))
+    {
+      box = null;
     }
 
     var menu = hud.m_pieceSelectionWindow != null ? hud.m_pieceSelectionWindow.transform : null;
