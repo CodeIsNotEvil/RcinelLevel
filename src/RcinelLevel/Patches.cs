@@ -121,3 +121,15 @@ internal static class DepthLockPatch
 {
   private static bool Prefix(TerrainOp __instance) => !DepthLock.TakeOver(__instance);
 }
+
+/// <summary>
+/// No build menu for the level hoe: it has one piece, which the game selects on equip, so the menu
+/// only ever offered one choice (owner, 2026-11-03). Skips the game's check for the menu button while
+/// the local player holds the level hoe; every other build tool keeps its menu.
+/// </summary>
+[HarmonyPatch(typeof(Player), nameof(Player.UpdateBuildGuiInput))]
+internal static class NoBuildMenuPatch
+{
+  private static bool Prefix(Player __instance) =>
+    __instance != Player.m_localPlayer || !Items.IsLevelHoe(__instance.GetRightItem());
+}
