@@ -12,6 +12,41 @@ internal enum FrameShape
 }
 
 /// <summary>
+/// A moat around the frame, as wide as one of the game's drawbridges can cross (decision 0022). The
+/// widths are worked out from the bridges themselves (<see cref="MoatSizes"/>).
+/// </summary>
+internal enum MoatKind
+{
+  None,
+  Rustic,
+  Drawbridge,
+}
+
+/// <summary>The moat's sizes; set from the game's drawbridges when the items are created.</summary>
+internal static class MoatSizes
+{
+  /// <summary>
+  /// Metres of moat between the frame's last vertex and the far bank's first. The gap at the top is one
+  /// metre more (the frame's edge cell slopes down into it), and the bridge must still rest half a metre
+  /// on the far bank, so the width is the bridge's reach minus 1.5, rounded down. Defaults from the game's
+  /// prefabs as read on 2026-11-03 (Rustic reach 5.9 m, Drawbridge 9.6 m).
+  /// </summary>
+  public static int RusticWidth { get; set; } = 4;
+
+  public static int DrawbridgeWidth { get; set; } = 8;
+
+  /// <summary>Metres below the target height; enemies can't climb out of 3 m (owner, 2026-11-03).</summary>
+  public static float Depth { get; set; } = 3f;
+
+  public static int Width(MoatKind kind) => kind switch
+  {
+    MoatKind.Rustic => RusticWidth,
+    MoatKind.Drawbridge => DrawbridgeWidth,
+    _ => 0,
+  };
+}
+
+/// <summary>
 /// The area the probe measures and the hoe levels (decisions 0006, 0010), on the terrain's vertex grid.
 /// </summary>
 /// <remarks>
@@ -55,6 +90,58 @@ internal sealed class Frame
   /// (decision 0016). Only on a pinned frame.
   /// </summary>
   public bool DepthLocked { get; private set; }
+
+  /// <summary>The moat around the frame, if any (decision 0022).</summary>
+  public MoatKind Moat { get; private set; }
+
+  public void CycleMoat()
+  {
+    Moat = Moat switch
+    {
+      MoatKind.None => MoatKind.Rustic,
+      MoatKind.Rustic => MoatKind.Drawbridge,
+      _ => MoatKind.None,
+    };
+    Revision++;
+  }
+
+  public int MoatWidth => MoatSizes.Width(Moat);
+
+  /// <summary>The frame's bounds grown by the moat.</summary>
+  public (int MinX, int MinZ, int MaxX, int MaxZ) OuterBounds
+  {
+    get
+    {
+      var (minX, minZ, maxX, maxZ) = Bounds;
+      var w = MoatWidth;
+      return (minX - w, minZ - w, maxX + w, maxZ + w);
+    }
+  }
+
+  /// <summary>
+  /// Whether a vertex lies in the moat: outside the frame but within the moat's width of it. For square
+  /// and rectangle that is the frame's bounds grown by the width on every side; for a circle a ring
+  /// measured straight out from the circle, so the moat is the bridge's width at the four cardinal points
+  /// and wider along the axes where the circle's edge zigzags.
+  /// </summary>
+  public bool InMoat(int x, int z)
+  {
+    var w = MoatWidth;
+    if (w == 0 || Contains(x, z))
+    {
+      return false;
+    }
+
+    if (Shape == FrameShape.Circle)
+    {
+      float dx = x - CenterX, dz = z - CenterZ;
+      var outer = Radius + 0.5f + w;
+      return dx * dx + dz * dz <= outer * outer;
+    }
+
+    var (minX, minZ, maxX, maxZ) = OuterBounds;
+    return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+  }
 
   /// <summary>The height the hoe levels to; null means "the probe's result".</summary>
   public float? ManualHeight { get; private set; }
@@ -220,16 +307,18 @@ internal sealed class Frame
   /// </summary>
   public string Save() => string.Join(";", new[]
   {
-    "1", ((int)Shape).ToString(Inv), CenterX.ToString(Inv), CenterZ.ToString(Inv), Radius.ToString(Inv),
+    "2", ((int)Shape).ToString(Inv), CenterX.ToString(Inv), CenterZ.ToString(Inv), Radius.ToString(Inv),
     North.ToString(Inv), East.ToString(Inv), South.ToString(Inv), West.ToString(Inv), Pinned ? "1" : "0",
     PinnedBalance?.ToString("R", Inv) ?? "", ManualHeight?.ToString("R", Inv) ?? "", DepthLocked ? "1" : "0",
+    ((int)Moat).ToString(Inv),
   });
 
   /// <summary>Restores a frame written by <see cref="Save"/>; false (and nothing changed) if it can't be read.</summary>
   public bool Load(string text)
   {
     var p = text.Split(';');
-    if (p.Length != 13 || p[0] != "1")
+    // Version 1 (before the moat) has 13 fields, version 2 a 14th for the moat.
+    if (!((p.Length == 13 && p[0] == "1") || (p.Length == 14 && p[0] == "2")))
     {
       return false;
     }
@@ -246,6 +335,7 @@ internal sealed class Frame
       PinnedBalance = Pinned ? balance : null;
       ManualHeight = manual;
       DepthLocked = Pinned && p[12] == "1";
+      Moat = p.Length == 14 ? (MoatKind)int.Parse(p[13], Inv) : MoatKind.None;
       Placed = true;
       Revision++;
       return true;
@@ -279,10 +369,12 @@ internal sealed class Frame
 /// <param name="TooHigh">Vertices that can't be dug down to the target: the game's -8 m limit stops them.</param>
 /// <param name="Loaded">Vertices measured; less than <paramref name="Expected"/> where the ground is too far away to be loaded.</param>
 /// <param name="Heights">The ground at every vertex of the frame's bounds, from (<paramref name="MinX"/>, <paramref name="MinZ"/>); NaN where it isn't loaded or isn't in the frame.</param>
-/// <param name="Unreachable">The vertices counted in <paramref name="TooLow"/> and <paramref name="TooHigh"/>, for the probe's red overlay.</param>
+/// <param name="Unreachable">The vertices counted in <paramref name="TooLow"/>, <paramref name="TooHigh"/> and <paramref name="MoatTooDeep"/>, for the probe's red overlay.</param>
+/// <param name="MoatDig">Cubic metres still to dig out of the moat down to its floor.</param>
+/// <param name="MoatTooDeep">Moat vertices the game's -8 m limit keeps above the moat's floor.</param>
 internal readonly record struct Measurement(
   float Balance, float Cut, float Fill, int TooLow, int TooHigh, int Loaded, int Expected, float Lowest, float Highest,
-  int MinX, int MinZ, float[,] Heights, IReadOnlyList<(int X, int Z)> Unreachable)
+  int MinX, int MinZ, float[,] Heights, IReadOnlyList<(int X, int Z)> Unreachable, float MoatDig, int MoatTooDeep)
 {
   public int OutOfReach => TooLow + TooHigh;
 }
@@ -339,14 +431,15 @@ internal static class Probe
   /// </remarks>
   public static Measurement? Measure(Frame frame, float? target)
   {
-    var (minX, minZ, maxX, maxZ) = frame.Bounds;
+    // The moat around the frame is read too, but only the frame counts for the balance.
+    var (minX, minZ, maxX, maxZ) = frame.OuterBounds;
     int width = maxX - minX + 1, depth = maxZ - minZ + 1;
     var expected = 0;
     for (var z = minZ; z <= maxZ; z++)
     {
       for (var x = minX; x <= maxX; x++)
       {
-        if (frame.Contains(x, z))
+        if (frame.Contains(x, z) || frame.InMoat(x, z))
         {
           expected++;
         }
@@ -364,6 +457,7 @@ internal static class Probe
     }
 
     var heights = new List<(int X, int Z, float Height, float Generated)>(expected);
+    var moat = new List<(int X, int Z, float Height, float Generated)>();
     foreach (var heightmap in Heightmap.s_heightmaps)
     {
       Read(heightmap);
@@ -411,7 +505,22 @@ internal static class Probe
       }
     }
 
-    return new Measurement(balance, cut, fill, tooLow, tooHigh, heights.Count, expected, lowest, highest, minX, minZ, grid, unreachable);
+    // The moat's floor lies the moat's depth below the target; what's above it is still to dig.
+    float moatDig = 0;
+    var moatTooDeep = 0;
+    var floor = level - MoatSizes.Depth;
+    foreach (var (x, z, height, generated) in moat)
+    {
+      moatDig += Math.Max(0f, height - Math.Max(floor, generated - MaxChange));
+      if (generated - floor > MaxChange + 0.01f)
+      {
+        moatTooDeep++;
+        unreachable.Add((x, z));
+      }
+    }
+
+    return new Measurement(balance, cut, fill, tooLow, tooHigh, heights.Count + moat.Count, expected, lowest, highest, minX, minZ, grid,
+      unreachable, moatDig, moatTooDeep);
 
     void Read(Heightmap heightmap)
     {
@@ -443,7 +552,13 @@ internal static class Probe
         for (var j = fromJ; j <= toJ; j++)
         {
           int x = originX + j, z = originZ + i;
-          if (seen[x - minX, z - minZ] || !frame.Contains(x, z))
+          if (seen[x - minX, z - minZ])
+          {
+            continue;
+          }
+
+          var inFrame = frame.Contains(x, z);
+          if (!inFrame && !frame.InMoat(x, z))
           {
             continue;
           }
@@ -454,7 +569,7 @@ internal static class Probe
           // How far the vertex has already been moved from the generated ground; no compiler means
           // nobody has changed the terrain of this heightmap.
           var change = compiler is null ? 0f : compiler.m_levelDelta[index] + compiler.m_smoothDelta[index];
-          heights.Add((x, z, height, height - change));
+          (inFrame ? heights : moat).Add((x, z, height, height - change));
           grid[x - minX, z - minZ] = height;
         }
       }

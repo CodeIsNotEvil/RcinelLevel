@@ -70,6 +70,7 @@ internal static class Items
       var material = MakeMaterials();
       CreateTiles();
       MeasureStoneCost();
+      MeasureDrawbridges();
       CreateProbe(material);
       CreatePieceTableAndPiece();
       CreateHoe(material);
@@ -255,6 +256,34 @@ internal static class Items
     }
 
     _logger.LogWarning($"The game's Raise ground wasn't found; the level hoe charges {Stroke.StonePerCubicMetre} stone per m³.");
+  }
+
+  /// <summary>
+  /// The moat widths from the game's two drawbridges (decision 0022): how far each one's deck reaches
+  /// from the gate when lowered, read from the deck's collider (<c>door/collider</c>, which lies along the
+  /// door's X), minus 1.5 m (see <see cref="MoatSizes.RusticWidth"/>). Keeps the defaults if a game
+  /// update moves the parts.
+  /// </summary>
+  private static void MeasureDrawbridges()
+  {
+    MoatSizes.RusticWidth = Width("piece_drawbridge_log") ?? MoatSizes.RusticWidth;
+    MoatSizes.DrawbridgeWidth = Width("piece_drawbridge") ?? MoatSizes.DrawbridgeWidth;
+    _logger.LogInfo($"Moat widths: {MoatSizes.RusticWidth} m for the Rustic Drawbridge, {MoatSizes.DrawbridgeWidth} m for the Drawbridge.");
+
+    static int? Width(string name)
+    {
+      var door = PrefabManager.Instance.GetPrefab(name)?.transform.Find("door");
+      var collider = door?.Find("collider")?.GetComponent<BoxCollider>();
+      if (door is null || collider is null)
+      {
+        _logger.LogWarning($"The deck of {name} wasn't found; its moat width stays at the default.");
+        return null;
+      }
+
+      var t = collider.transform;
+      var reach = door.localPosition.x + t.localPosition.x + t.localScale.x * (collider.center.x + collider.size.x / 2f);
+      return reach > 2.5f ? Mathf.FloorToInt(reach - 1.5f) : null;
+    }
   }
 
   private static void CreateProbe(Material[]? material)

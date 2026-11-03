@@ -46,6 +46,8 @@ internal sealed class Settings : IDisposable
       "Set the target height back to the probe's cut-and-fill result.");
     LockDepth = config.Bind("Keys", "Lock pickaxe depth", KeyCode.L,
       "While holding the probe: lock the pickaxe to the frame, so inside it the pickaxe digs no deeper than the target height and never past the frame's edge.");
+    CycleMoat = config.Bind("Keys", "Cycle moat", KeyCode.K,
+      "While holding the probe: a moat around the frame, as wide as the Rustic Drawbridge or the Drawbridge can cross, or none.");
     HeightStep = config.Bind("Controls", "Height step", 0.25f,
       new ConfigDescription("Metres per scroll step with the height modifier.", new AcceptableValueRange<float>(0.05f, 2f)));
 
@@ -68,6 +70,11 @@ internal sealed class Settings : IDisposable
         new AcceptableValueRange<float>(0f, 10f),
         new ConfigurationManagerAttributes { IsAdminOnly = true }));
     // 1 m was too generous (owner, 2026-11-03): 0.25 m evens out small bumps, not real slopes.
+    MoatDepth = config.Bind("Server", "Moat depth", 3f,
+      new ConfigDescription(
+        "How far the moat's floor lies below the target height, in metres. At least 3, so enemies can't walk out of it. Synced from the server.",
+        new AcceptableValueRange<float>(3f, 8f),
+        new ConfigurationManagerAttributes { IsAdminOnly = true }));
     FreeDepth = config.Bind("Server", "Free fill depth", 0.25f,
       new ConfigDescription(
         "Raising a spot by up to this many metres costs nothing; only the height above it is paid for. Lets almost flat ground be levelled for free. Synced from the server.",
@@ -118,6 +125,8 @@ internal sealed class Settings : IDisposable
   public ConfigEntry<KeyCode> PickHeight { get; }
   public ConfigEntry<KeyCode> ResetHeight { get; }
   public ConfigEntry<KeyCode> LockDepth { get; }
+  public ConfigEntry<KeyCode> CycleMoat { get; }
+  public ConfigEntry<float> MoatDepth { get; }
   public ConfigEntry<float> StoneCost { get; }
   public ConfigEntry<float> FreeDepth { get; }
   public ConfigEntry<float> HeightStep { get; }

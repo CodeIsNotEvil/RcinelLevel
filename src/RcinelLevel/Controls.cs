@@ -91,6 +91,7 @@ internal sealed class Controls : IDisposable
     }
 
     _frame.Limit(_settings.MaxRadius.Value);
+    MoatSizes.Depth = _settings.MoatDepth.Value;
     if (TakesInput() && (probe || hoe))
     {
       HandleInput(probe);
@@ -191,6 +192,12 @@ internal sealed class Controls : IDisposable
       hints.Add(([KeyName(_settings.CycleShape.Value)], "Shape"));
       hints.Add(([KeyName(_settings.PinFrame.Value)], _frame.Pinned ? "Unpin" : "Pin"));
       hints.Add(([KeyName(_settings.LockDepth.Value)], _frame.DepthLocked ? "Unlock pickaxe" : "Lock pickaxe"));
+      hints.Add(([KeyName(_settings.CycleMoat.Value)], "Moat: " + MoatName(_frame.Moat switch
+      {
+        MoatKind.None => MoatKind.Rustic,
+        MoatKind.Rustic => MoatKind.Drawbridge,
+        _ => MoatKind.None,
+      })));
     }
 
     hints.Add(([KeyName(_settings.ResizeModifier.Value), "Wheel"], "Size"));
@@ -199,6 +206,14 @@ internal sealed class Controls : IDisposable
     hints.Add(([KeyName(_settings.ResetHeight.Value)], "Probe height"));
     return hints;
   }
+
+  /// <summary>The game's own name of the bridge a moat is sized for, in the player's language.</summary>
+  private static string MoatName(MoatKind kind) => kind switch
+  {
+    MoatKind.Rustic => Localization.instance.Localize("$piece_drawbridge_log"),
+    MoatKind.Drawbridge => Localization.instance.Localize("$piece_drawbridge"),
+    _ => "none",
+  };
 
   /// <summary>"Left Alt" for LeftAlt, "1" for Alpha1: what the key says on the keyboard.</summary>
   private static string KeyName(KeyCode key)
@@ -254,7 +269,9 @@ internal sealed class Controls : IDisposable
     }
 
     var brush = BrushBounds(point);
-    if (!_frame.Contains(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.z)) && TerrainTiles.Cover(brush, _frame.Contains).Count == 0)
+    // With the dev dig the moat counts as well: the hoe digs it then.
+    bool Reachable(int x, int z) => _frame.Contains(x, z) || (DevModes.Dig && _frame.InMoat(x, z));
+    if (!Reachable(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.z)) && TerrainTiles.Cover(brush, Reachable).Count == 0)
     {
       player.Message(MessageHud.MessageType.Center, "Aim inside the frame.");
       return;
@@ -328,6 +345,11 @@ internal sealed class Controls : IDisposable
       }
 
       _frame.SetDepthLocked(!_frame.DepthLocked);
+    }
+
+    if (probe && Keys.Pressed(_settings.CycleMoat.Value))
+    {
+      _frame.CycleMoat();
     }
 
     if (probe && Keys.Pressed(_settings.PinFrame.Value))
@@ -418,6 +440,11 @@ internal sealed class Controls : IDisposable
       text.Append($" · pickaxe locked at {floor:0.00} m");
     }
 
+    if (_frame.Moat != MoatKind.None)
+    {
+      text.Append($" · moat {_frame.MoatWidth} m ({MoatName(_frame.Moat)})");
+    }
+
     if (DevModes.NoStone || DevModes.Dig)
     {
       text.Append(" · dev:").Append(DevModes.NoStone ? " no stone" : "").Append(DevModes.Dig ? " dig" : "");
@@ -427,6 +454,15 @@ internal sealed class Controls : IDisposable
     if (_measurement is { } m && Target is { } target)
     {
       text.Append($"Target {target:0.00} m ({TargetSource})").Append($" · dig {m.Cut:0} m³ · fill {m.Fill:0} m³");
+      if (_frame.Moat != MoatKind.None)
+      {
+        text.AppendLine().Append($"Moat {_frame.MoatWidth} m wide, floor {target - MoatSizes.Depth:0.00} m ({MoatSizes.Depth:0.#} m deep): dig {m.MoatDig:0} m³");
+        if (m.MoatTooDeep > 0)
+        {
+          text.Append($" · {m.MoatTooDeep} m² can't be dug that deep (red)");
+        }
+      }
+
       if (m.OutOfReach > 0)
       {
         // The game moves no vertex more than 8 m from the generated ground; the probe shows them in red.

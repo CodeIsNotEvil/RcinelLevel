@@ -185,6 +185,7 @@ internal static class Stroke
     // The game clamps every vertex to 8 m from the generated ground, so nothing beyond is raised or paid.
     var raise = new Dictionary<(int, int), float>();
     var lower = new HashSet<(int, int)>();
+    var moat = new List<(int X, int Z, float Height)>();
     // Painted as cleared: what this stroke raises and what already lies at the target, the way the
     // game's level ground leaves the whole levelled patch bare.
     var paint = new List<(int, int, float)>();
@@ -192,6 +193,19 @@ internal static class Stroke
     {
       for (var x = brush.MinX; x <= brush.MaxX; x++)
       {
+        // With the dev dig on, the hoe digs the moat down to its floor as well; it never fills it.
+        if (dig && frame.InMoat(x, z) && Probe.At(x, z) is { } bank)
+        {
+          var bottom = Math.Max(target - MoatSizes.Depth, bank.Generated - Probe.MaxChange);
+          if (bank.Height - bottom > 0.02f)
+          {
+            moat.Add((x, z, bottom));
+            paint.Add((x, z, bottom));
+          }
+
+          continue;
+        }
+
         if (!frame.Contains(x, z) || Probe.At(x, z) is not { } ground)
         {
           continue;
@@ -227,6 +241,12 @@ internal static class Stroke
     foreach (var (x, z, radius) in TerrainTiles.Cover(brush, (x, z) => raise.ContainsKey((x, z)) || lower.Contains((x, z))))
     {
       tiles.Add((x, z, radius, target));
+    }
+
+    // The moat's floor follows the -8 m limit per vertex, so each gets a tile of its own.
+    foreach (var (x, z, height) in moat)
+    {
+      tiles.Add((x, z, 0, height));
     }
 
     return (tiles, fill, Mathf.CeilToInt(paid * StonePerCubicMetre * costFactor - 0.001f), paint);
@@ -278,7 +298,7 @@ internal static class DepthLock
     {
       for (var x = cx - reach; x <= cx + reach && !touches; x++)
       {
-        touches = frame.Contains(x, z);
+        touches = frame.Contains(x, z) || frame.InMoat(x, z);
       }
     }
 
@@ -309,12 +329,14 @@ internal static class DepthLock
           }
         }
 
-        if (!frame.Contains(x, z) || Probe.At(x, z) is not { } ground)
+        // Inside the frame the floor is the target; in the moat the moat's floor (decision 0022).
+        var inFrame = frame.Contains(x, z);
+        if ((!inFrame && !frame.InMoat(x, z)) || Probe.At(x, z) is not { } ground)
         {
           continue;
         }
 
-        var wanted = Math.Max(position.y + settings.m_raiseDelta * strength, floor);
+        var wanted = Math.Max(position.y + settings.m_raiseDelta * strength, inFrame ? floor : floor - MoatSizes.Depth);
         if (wanted < ground.Height - 0.01f)
         {
           tiles.Add((x, z, 0, wanted));

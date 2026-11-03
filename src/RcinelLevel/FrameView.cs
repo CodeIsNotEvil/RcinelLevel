@@ -24,10 +24,12 @@ internal sealed class FrameView
   private const int MaxSegments = 400;
   private static readonly Color TargetTint = new(0.45f, 0.85f, 1f, 1f);
   private static readonly Color BrushTint = new(1f, 0.55f, 0.2f, 1f);
+  private static readonly Color MoatTint = new(0.25f, 0.45f, 1f, 1f);
 
   private readonly List<GameObject> _ground = [];
   private readonly List<GameObject> _target = [];
   private readonly List<GameObject> _brush = [];
+  private readonly List<GameObject> _moat = [];
   private readonly List<(Vector3 Point, Vector3 Tangent)> _outline = [];
   private GameObject? _root;
   private int _drawnRevision = -1;
@@ -44,6 +46,7 @@ internal sealed class FrameView
       _ground.Clear();
       _target.Clear();
       _brush.Clear();
+      _moat.Clear();
       _drawnRevision = -1;
     }
 
@@ -66,7 +69,27 @@ internal sealed class FrameView
     Outline(frame);
     Draw(_ground, tint: null, point => Physics.Raycast(point + Vector3.up * 500f, Vector3.down, out var hit, 1000f, GroundMask) ? hit.point.y : (float?)null);
     Draw(_target, TargetTint, _ => target);
+    DrawMoat(frame);
     DrawBrush(frame, target, brush);
+  }
+
+  /// <summary>The moat's outer edge, on the ground, in blue; nothing without a moat.</summary>
+  private void DrawMoat(Frame frame)
+  {
+    _outline.Clear();
+    if (frame.Moat != MoatKind.None)
+    {
+      if (frame.Shape == FrameShape.Circle)
+      {
+        Circle(frame.CenterX, frame.CenterZ, frame.Radius + 0.5f + frame.MoatWidth);
+      }
+      else
+      {
+        Rectangle(frame.OuterBounds);
+      }
+    }
+
+    Draw(_moat, MoatTint, point => Physics.Raycast(point + Vector3.up * 500f, Vector3.down, out var hit, 1000f, GroundMask) ? hit.point.y : (float?)null);
   }
 
   /// <summary>The brush, cut to the frame's bounds (a circle's edge is only approximated here).</summary>
@@ -102,19 +125,22 @@ internal sealed class FrameView
     _outline.Clear();
     if (frame.Shape == FrameShape.Circle)
     {
-      var radius = frame.Radius + 0.5f;
-      var count = Mathf.Clamp(Mathf.CeilToInt(2 * Mathf.PI * radius / Spacing), 8, MaxSegments);
-      for (var i = 0; i < count; i++)
-      {
-        var angle = 2 * Mathf.PI * i / count;
-        var point = new Vector3(frame.CenterX + Mathf.Sin(angle) * radius, 0f, frame.CenterZ + Mathf.Cos(angle) * radius);
-        _outline.Add((point, new Vector3(Mathf.Cos(angle), 0f, -Mathf.Sin(angle))));
-      }
-
+      Circle(frame.CenterX, frame.CenterZ, frame.Radius + 0.5f);
       return;
     }
 
     Rectangle(frame.Bounds);
+  }
+
+  private void Circle(int centerX, int centerZ, float radius)
+  {
+    var count = Mathf.Clamp(Mathf.CeilToInt(2 * Mathf.PI * radius / Spacing), 8, MaxSegments);
+    for (var i = 0; i < count; i++)
+    {
+      var angle = 2 * Mathf.PI * i / count;
+      var point = new Vector3(centerX + Mathf.Sin(angle) * radius, 0f, centerZ + Mathf.Cos(angle) * radius);
+      _outline.Add((point, new Vector3(Mathf.Cos(angle), 0f, -Mathf.Sin(angle))));
+    }
   }
 
   private void Rectangle((int MinX, int MinZ, int MaxX, int MaxZ) bounds)

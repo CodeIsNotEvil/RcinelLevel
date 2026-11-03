@@ -126,6 +126,9 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   for per-character mod state (2026-11-03).
 - **The build HUD's texts are TextMeshPro** (`Hud.m_buildSelection` is a `TMP_Text`); touching them
   needs a reference to the game's `Unity.TextMeshPro.dll` (2026-11-03).
+- **Drawbridges**: `piece_drawbridge` ("Drawbridge") and `piece_drawbridge_log` ("Rustic Drawbridge")
+  in bundle `c4210710`; the deck is `door` (raised by its rotation) with `door/collider` along its X.
+  The English names are in `resources.assets` as `"piece_drawbridge","Drawbridge"` lines (2026-11-03).
 - **Check transitive licenses**, not only direct ones: LaunchHeim found an LGPL library pulled in by
   an MIT one (2026-09-30). Matters if RcinelLevel ever ships a library inside its package.
 
