@@ -25,6 +25,7 @@ internal sealed class Controls : IDisposable
   private const float MeasureInterval = 0.5f;
   private const float AimDistance = 60f;
   private const string StoneName = "$item_stone";
+  private const float NearTarget = 0.25f;
 
   private static readonly int GroundMask = LayerMask.GetMask("terrain");
   private static readonly int AnythingMask = LayerMask.GetMask("terrain", "piece", "piece_nonsolid", "static_solid", "Default", "Default_small");
@@ -155,7 +156,13 @@ internal sealed class Controls : IDisposable
     var (tiles, fill, stone) = Stroke.Plan(_frame, brush, target, _settings.StoneCost.Value, _settings.FreeDepth.Value);
     if (tiles.Count == 0)
     {
-      player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");
+      // Ground at or just above the target is done, not a mistake: only say something when there is
+      // real digging left (owner, 2026-11-03).
+      if (HighestUnder(brush) > target + NearTarget)
+      {
+        player.Message(MessageHud.MessageType.Center, "Nothing here lies below the target. Dig with the pickaxe.");
+      }
+
       return;
     }
 
@@ -268,6 +275,24 @@ internal sealed class Controls : IDisposable
     }
 
     return Aim(GroundMask) is { } point ? BrushBounds(point) : null;
+  }
+
+  /// <summary>The highest ground under the brush, inside the frame.</summary>
+  private float HighestUnder((int MinX, int MinZ, int MaxX, int MaxZ) brush)
+  {
+    var highest = float.MinValue;
+    for (var z = brush.MinZ; z <= brush.MaxZ; z++)
+    {
+      for (var x = brush.MinX; x <= brush.MaxX; x++)
+      {
+        if (_frame.Contains(x, z) && Probe.At(x, z) is { } ground)
+        {
+          highest = Math.Max(highest, ground.Height);
+        }
+      }
+    }
+
+    return highest;
   }
 
   private (int MinX, int MinZ, int MaxX, int MaxZ) BrushBounds(Vector3 point)

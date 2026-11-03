@@ -39,3 +39,7 @@ a wooden straightedge across its back. Icons: [[0017-icons-rendered-from-the-mod
 **Hoe turned over 2026-11-03**: the owner saw it upside down in the hand. The default rotation went
 from (-90, 0, 180) to (90, 0, 180), end over end about the grip. If the blade then faces the wrong
 way, (90, 0, 0) turns it about the handle instead; both are config values that apply while playing.
+
+**And back, 2026-11-03**: turned end over end, the whole tool pointed backwards from the hand
+(owner's screenshot), so the first direction was right and only the blade was upside down. The half
+turn belongs about the handle: the default is now (90, 0, 0).

@@ -88,8 +88,9 @@ internal sealed class Settings : IDisposable
       "Rotation of the probe's model in the hand, in degrees (x, y, z).");
     HoePosition = config.Bind("Model placement", "Level hoe position", new Vector3(0f, 0f, -0.51f),
       "Offset of the level hoe's model in the hand, in metres.");
-    // (-90, 0, 180) held it upside down (owner's test, 2026-11-03); turned end over end about the grip.
-    HoeRotation = config.Bind("Model placement", "Level hoe rotation", new Vector3(90f, 0f, 180f),
+    // (-90, 0, 180) had the blade upside down, and (90, 0, 180), end over end, pointed the whole tool
+    // backwards (owner's tests, 2026-11-03): the half turn has to be about the handle, which is (90, 0, 0).
+    HoeRotation = config.Bind("Model placement", "Level hoe rotation", new Vector3(90f, 0f, 0f),
       "Rotation of the level hoe's model in the hand, in degrees (x, y, z).");
 
     try
