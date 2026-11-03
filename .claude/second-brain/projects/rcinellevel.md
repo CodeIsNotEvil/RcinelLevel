@@ -44,14 +44,34 @@ on GitHub). No code yet.
   by hand (a hotkey or the scroll wheel, like the hammer's rotation).
 - A separate item; the game's hoe stays as it is ([[0003-separate-tools]]).
 
-## Open questions for the owner
-- The items: which crafting station, which materials, and what do they look like (a clone of the
-  hoe's model with another colour, a stake or a dowsing rod for the probe)?
-- The probe's area: a fixed square, a size the player picks, or the hoe's own brush size?
-- Multiplayer: must the server have the mod, and may only admins use it (Jotunn's config sync can
-  enforce server settings)?
-- Namespaces: `Rcinel.Level.*` like RcinelTranslate, or `CINE.*` like MyMonoRepo?
-- Thunderstore team name, and the icon (256×256 PNG). Does it go on the owner's app site too?
+## Settled so far
+- Recipes: both at the Workbench, the hoe as an upgrade of the game's hoe ([[0007-recipes]]).
+- The player sets the area; the hoe levels it in world-aligned tiles ([[0006-probe-area-set-by-player]]).
+- Server and every client need the mod; anyone who can craft the tools may use them
+  ([[0005-everyone-needs-the-mod]], why in [[terrain-and-multiplayer]]).
+- Namespaces `Rcinel.Level.*` ([[0008-rcinel-level-namespace]]).
+- Thunderstore: released as the owner's account CodeIsNotEvil ([[thunderstore-publishing]]).
+- Icons: the RL logo, a probe and a level hoe, as SVGs in `assets/` (2026-11-03).
+- Models: Blender scripts, loaded at runtime ([[0009-blender-models-loaded-at-runtime]]).
+
+## What the game allows (from its code, see [[terrain-and-multiplayer]])
+- Walls can't be truly vertical: terrain vertices are 1 m apart, so the sharpest edge is the whole
+  step across one 1 m cell. "90° walls" means as steep as the grid allows.
+- Straight walls run north–south or east–west only: level ops ignore rotation.
+
+- Frame: circle, square or rectangle, resized with the scroll wheel; the rectangle only toward
+  where the player looks. Height from the probe or by hand ([[0010-area-shapes-and-scroll]]).
+- Looks: the probe is a long rod you push into the ground to feel for hard layers (a soil probe);
+  the level hoe's design was left to Claude ([[0011-model-designs]]).
+
+- Controls: the probe cycles the shape, modifier + scroll resizes, height by modifier + scroll,
+  eyedropper or reset to the probe result; keys are config entries ([[0012-controls]]).
+
+## Open
+- How the tools sit in the hand: the owner sends a screenshot after the first test, and the attach
+  rotation and offset are tuned from it.
+- Whether the default keys clash with the game's bindings: checked in the first test.
+- Does it go on the owner's app site too?
 
 ## Plan (proposal, nothing decided)
 1. Read the game's terrain code first (`ilspycmd`, see [[valheim-modding]]): `TerrainOp` and its

@@ -20,7 +20,15 @@ themselves. Treat the config, the item names and the Thunderstore page as someth
 depend on. The rules below come from the owner's other repositories, CodeIsNotEvil/MyMonoRepo
 (LaunchHeim) and CodeIsNotEvil/RcinelTranslate.
 
-There is no code yet. Update this file's layout and commands once the project exists.
+There is no plugin code yet. Update this file's layout and commands once the project exists.
+
+- `assets/`: the logo and item icons. The SVGs are the source; `assets/README.md` says how the PNGs
+  are rendered. `scripts/text_logo.py` makes the logo.
+- `package/`: the files of the Thunderstore package that aren't built (`icon.png` so far).
+- `models/build.py`: builds the 3D models in Blender (5.2, headless) and exports them to
+  `assets/models/` (OBJ meshes, one PNG atlas, previews). The script is the source; `models/README.md`
+  has the command and the conventions the plugin's loader relies on. After changing a model, render
+  the previews and look at them before committing.
 
 ## One repository per application
 
@@ -55,10 +63,9 @@ namespaces and primary constructors.
 The plugin runs on Unity's Mono inside Valheim, so it targets `net472`; `LangVersion latest` is fine
 because the newer C# features compile down, but no API newer than .NET Framework 4.7.2 is.
 
-Namespaces: still to be settled with the owner. MyMonoRepo puts everything under `CINE.*`
-(its decision 0004); RcinelTranslate moved to `Rcinel.Translate.*` instead. `Rcinel.Level.*` would
-match RcinelTranslate. "Rcinel" alone is the prefix of all the owner's apps, so nothing here may claim
-the bare name (no class, command, GUID or file called just `Rcinel`).
+Namespaces are `Rcinel.Level.*` (decision 0008), the assembly `RcinelLevel`, the BepInEx GUID
+`io.github.codeisnotevil.rcinellevel`. "Rcinel" alone is the prefix of all the owner's apps, so
+nothing here may claim the bare name (no class, command, GUID or file called just `Rcinel`).
 
 Build file-system paths with the platform's path API (`Path.Combine`), never by joining strings with
 `/` or `\`. The owner plays on Linux, but most players are on Windows.
@@ -71,8 +78,9 @@ Comments explain *why* a decision was made, and there are many of them. Keep tha
   committed or shipped, publicized or not. `.gitignore` keeps them out.
 - Iron Gate asks mods that change gameplay to set `Game.isModded`. Doing so switches off Steam
   achievements for the session; say so on the Thunderstore page.
-- Everything that changes terrain must work in multiplayer: terrain edits are networked objects, and
-  a player without the mod must not end up with a broken world.
+- Everything that changes terrain must work in multiplayer. Terrain edits are applied by whoever
+  owns that patch of terrain, which looks the op up by prefab hash, so the server and every client
+  need the mod and Jotunn enforces it (decision 0005, [[terrain-and-multiplayer]]).
 - How to read the game's own code, where the game and the test instance live on the owner's machine,
   and the snags already found are in the second brain ([[valheim-modding]]).
 
