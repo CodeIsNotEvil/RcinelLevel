@@ -48,6 +48,11 @@
       <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'assembly_guiutils.dll'))</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Unity's Input System, for keys that follow the player's keyboard layout (Keys.cs). A package too. -->
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'Unity.InputSystem.dll'))</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- uGUI is a Unity package, not a module, so it isn't in UnityEngine.Modules. -->
     <Reference Include="UnityEngine.UI">
       <HintPath>$([System.IO.Path]::Combine($(ValheimManaged), 'UnityEngine.UI.dll'))</HintPath>

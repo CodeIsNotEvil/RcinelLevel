@@ -47,11 +47,17 @@ internal sealed class Settings : IDisposable
     HeightStep = config.Bind("Controls", "Height step", 0.25f,
       new ConfigDescription("Metres per scroll step with the height modifier.", new AcceptableValueRange<float>(0.05f, 2f)));
 
-    MaxRadius = config.Bind("Server", "Largest frame", 16,
+    // 16 (33 m across) was far too small in the owner's first test (2026-11-03). The frame only plans;
+    // the hoe's brush does the levelling, so a large frame costs nothing but measuring.
+    MaxRadius = config.Bind("Server", "Largest frame", 64,
       new ConfigDescription(
-        "How far the frame may reach from its centre, in metres (a square of 16 is 33 by 33 m). Synced from the server.",
-        new AcceptableValueRange<int>(1, 64),
+        "How far the frame may reach from its centre, in metres (a square of 64 is 129 by 129 m). Synced from the server.",
+        new AcceptableValueRange<int>(1, 128),
         new ConfigurationManagerAttributes { IsAdminOnly = true }));
+    HoeBrush = config.Bind("Controls", "Level hoe brush", 2,
+      new ConfigDescription(
+        "How far the level hoe reaches from where you aim, in metres: 2 levels a square of 5 by 5 m per stroke, cut off at the frame's edge.",
+        new AcceptableValueRange<int>(0, 8)));
     OpsPerFrame = config.Bind("Performance", "Terrain edits per frame", 8,
       new ConfigDescription(
         "How many terrain edits the hoe sends per rendered frame. Lower it if levelling a large frame stutters.",
@@ -96,6 +102,7 @@ internal sealed class Settings : IDisposable
   public ConfigEntry<KeyCode> ResetHeight { get; }
   public ConfigEntry<float> HeightStep { get; }
   public ConfigEntry<int> MaxRadius { get; }
+  public ConfigEntry<int> HoeBrush { get; }
   public ConfigEntry<int> OpsPerFrame { get; }
   public ConfigEntry<Vector3> ProbePosition { get; }
   public ConfigEntry<Vector3> ProbeRotation { get; }

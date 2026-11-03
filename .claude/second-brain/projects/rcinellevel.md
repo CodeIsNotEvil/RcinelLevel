@@ -70,7 +70,12 @@ on GitHub). No code yet.
 - First version of the plugin built on 2026-11-03 (`src/RcinelLevel/`), copied into the LaunchHeim
   `test` instance; the two tools share the hands through a patch ([[0013-off-hand-through-a-patch]]).
 
+- First test (2026-11-03): crafting, both tools in the hands, the frame and the readout worked; shape
+  cycling didn't (keyboard layout), the frame was too small, levelling the whole frame was too much,
+  and overlapping tiles left jagged edges. Fixed the same day ([[0014-hoe-levels-a-brush-inside-the-frame]]).
+
 ## Open
+- Resizing the hoe's brush in the game, not only in the config file.
 - How the tools sit in the hand: the owner sends a screenshot after the first test; the placement is
   in the config file and applies while the game runs.
 - Everything in the first version is untried in the game: crafting, holding both tools, the frame's

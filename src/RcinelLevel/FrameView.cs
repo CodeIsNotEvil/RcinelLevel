@@ -1,13 +1,16 @@
+using System;
 using System.Collections.Generic;
 using Jotunn.Managers;
 using UnityEngine;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 namespace Rcinel.Level;
 
 /// <summary>
 /// Draws the frame in the world the way the game draws a workbench's range: its dotted ring segments,
-/// once on the ground along the frame's edge and once, tinted, at the target height.
+/// once on the ground along the frame's edge and once, tinted blue, at the target height. With the
+/// level hoe out, the part its next stroke levels is outlined in orange at the target height.
 /// </summary>
 /// <remarks>
 /// The edge is drawn half a metre outside the outermost vertices, in the middle of the 1 m cell where
@@ -16,18 +19,23 @@ namespace Rcinel.Level;
 /// </remarks>
 internal sealed class FrameView
 {
+  // Segments 1 m apart, wider apart on big frames so a 257 m frame doesn't need a thousand of them.
   private const float Spacing = 1f;
+  private const int MaxSegments = 400;
   private static readonly Color TargetTint = new(0.45f, 0.85f, 1f, 1f);
+  private static readonly Color BrushTint = new(1f, 0.55f, 0.2f, 1f);
 
   private readonly List<GameObject> _ground = [];
   private readonly List<GameObject> _target = [];
+  private readonly List<GameObject> _brush = [];
   private readonly List<(Vector3 Point, Vector3 Tangent)> _outline = [];
   private GameObject? _root;
   private int _drawnRevision = -1;
   private float _drawnAt;
   private float? _drawnTarget;
+  private (int, int, int, int)? _drawnBrush;
 
-  public void Show(Frame frame, float? target)
+  public void Show(Frame frame, float? target, (int MinX, int MinZ, int MaxX, int MaxZ)? brush)
   {
     if (_root == null)
     {
@@ -35,6 +43,7 @@ internal sealed class FrameView
       _root = new GameObject("RcinelLevel frame");
       _ground.Clear();
       _target.Clear();
+      _brush.Clear();
       _drawnRevision = -1;
     }
 
@@ -43,6 +52,11 @@ internal sealed class FrameView
     // stays the same.
     if (frame.Revision == _drawnRevision && System.Nullable.Equals(target, _drawnTarget) && Time.time - _drawnAt < 0.5f)
     {
+      if (!System.Nullable.Equals(brush, _drawnBrush))
+      {
+        DrawBrush(frame, target, brush);
+      }
+
       return;
     }
 
@@ -52,6 +66,25 @@ internal sealed class FrameView
     Outline(frame);
     Draw(_ground, tint: null, point => Physics.Raycast(point + Vector3.up * 500f, Vector3.down, out var hit, 1000f, GroundMask) ? hit.point.y : (float?)null);
     Draw(_target, TargetTint, _ => target);
+    DrawBrush(frame, target, brush);
+  }
+
+  /// <summary>The brush, cut to the frame's bounds (a circle's edge is only approximated here).</summary>
+  private void DrawBrush(Frame frame, float? target, (int MinX, int MinZ, int MaxX, int MaxZ)? brush)
+  {
+    _drawnBrush = brush;
+    _outline.Clear();
+    if (brush is { } b && target is not null)
+    {
+      var (minX, minZ, maxX, maxZ) = frame.Bounds;
+      var clipped = (Math.Max(b.MinX, minX), Math.Max(b.MinZ, minZ), Math.Min(b.MaxX, maxX), Math.Min(b.MaxZ, maxZ));
+      if (clipped.Item1 <= clipped.Item3 && clipped.Item2 <= clipped.Item4)
+      {
+        Rectangle(clipped);
+      }
+    }
+
+    Draw(_brush, BrushTint, _ => target);
   }
 
   public void Hide()
@@ -70,7 +103,7 @@ internal sealed class FrameView
     if (frame.Shape == FrameShape.Circle)
     {
       var radius = frame.Radius + 0.5f;
-      var count = Mathf.Max(8, Mathf.CeilToInt(2 * Mathf.PI * radius / Spacing));
+      var count = Mathf.Clamp(Mathf.CeilToInt(2 * Mathf.PI * radius / Spacing), 8, MaxSegments);
       for (var i = 0; i < count; i++)
       {
         var angle = 2 * Mathf.PI * i / count;
@@ -81,8 +114,14 @@ internal sealed class FrameView
       return;
     }
 
-    var (minX, minZ, maxX, maxZ) = frame.Bounds;
+    Rectangle(frame.Bounds);
+  }
+
+  private void Rectangle((int MinX, int MinZ, int MaxX, int MaxZ) bounds)
+  {
+    var (minX, minZ, maxX, maxZ) = bounds;
     float west = minX - 0.5f, east = maxX + 0.5f, south = minZ - 0.5f, north = maxZ + 0.5f;
+    var spacing = Mathf.Max(Spacing, 2 * (east - west + north - south) / MaxSegments);
     Edge(new Vector3(west, 0, south), new Vector3(east, 0, south));
     Edge(new Vector3(east, 0, south), new Vector3(east, 0, north));
     Edge(new Vector3(east, 0, north), new Vector3(west, 0, north));
@@ -91,7 +130,7 @@ internal sealed class FrameView
     void Edge(Vector3 from, Vector3 to)
     {
       var length = Vector3.Distance(from, to);
-      var count = Mathf.Max(1, Mathf.RoundToInt(length / Spacing));
+      var count = Mathf.Max(1, Mathf.RoundToInt(length / spacing));
       var tangent = (to - from).normalized;
       for (var i = 0; i < count; i++)
       {
@@ -100,7 +139,7 @@ internal sealed class FrameView
     }
   }
 
-  private void Draw(List<GameObject> pool, Color? tint, System.Func<Vector3, float?> height)
+  private void Draw(List<GameObject> pool, Color? tint, Func<Vector3, float?> height)
   {
     while (pool.Count < _outline.Count)
     {

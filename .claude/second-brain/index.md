@@ -30,3 +30,4 @@ status: active
 - [[0011-model-designs]]: a soil-probe rod and a screed-board hoe with square end walls
 - [[0012-controls]]: the probe picks the shape; modifier + scroll resizes and sets the height
 - [[0013-off-hand-through-a-patch]]: the probe (a torch clone as a left-hand shield) and the level hoe share the hands
+- [[0014-hoe-levels-a-brush-inside-the-frame]]: the hoe levels a brush where you aim, inside the frame, to the target fixed at pinning

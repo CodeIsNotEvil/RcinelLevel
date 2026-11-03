@@ -43,6 +43,13 @@ internal sealed class Frame
   /// <summary>Pinned frames stay put; unpinned ones follow the probe's aim.</summary>
   public bool Pinned { get; private set; }
 
+  /// <summary>
+  /// The probe's balance when the frame was pinned. The hoe levels to it, not to the live balance:
+  /// every stroke changes the ground under the frame, and with it the mean, so a live target would
+  /// drift while the player works (2026-11-03).
+  /// </summary>
+  public float? PinnedBalance { get; private set; }
+
   /// <summary>The height the hoe levels to; null means "the probe's result".</summary>
   public float? ManualHeight { get; private set; }
 
@@ -80,9 +87,21 @@ internal sealed class Frame
     Revision++;
   }
 
-  public void SetPinned(bool pinned)
+  public void SetPinned(bool pinned, float? balance)
   {
     Pinned = pinned;
+    PinnedBalance = pinned ? balance : null;
+    Revision++;
+  }
+
+  /// <summary>Takes the probe's result again for a pinned frame (the "probe height" key).</summary>
+  public void Remeasured(float? balance)
+  {
+    if (Pinned)
+    {
+      PinnedBalance = balance;
+    }
+
     Revision++;
   }
 
@@ -199,7 +218,9 @@ internal sealed class Frame
 /// <param name="Cut">Cubic metres above the target height that levelling digs away.</param>
 /// <param name="Fill">Cubic metres below the target height that levelling raises.</param>
 /// <param name="OutOfReach">Vertices the game's ±8 m limit keeps from reaching the target.</param>
-internal readonly record struct Measurement(float Balance, float Cut, float Fill, int OutOfReach, int Vertices, float Lowest, float Highest);
+/// <param name="Loaded">Vertices measured; less than <paramref name="Expected"/> where the ground is too far away to be loaded.</param>
+internal readonly record struct Measurement(
+  float Balance, float Cut, float Fill, int OutOfReach, int Loaded, int Expected, float Lowest, float Highest);
 
 /// <summary>Reads the ground under a frame (decision 0002).</summary>
 internal static class Probe
@@ -209,24 +230,40 @@ internal static class Probe
 
   /// <summary>
   /// Measures the frame, against <paramref name="target"/> if given, else against its own balance.
-  /// Null while the ground under it isn't loaded.
+  /// Null while none of the ground under it is loaded.
   /// </summary>
   /// <remarks>
+  /// <para>
   /// Each vertex stands for one square metre, so on the regular grid the height where digging and
   /// raising cancel out is simply the mean of the vertices' heights.
+  /// </para>
+  /// <para>
+  /// It reads each loaded heightmap's own arrays for the part of the frame it holds, instead of
+  /// asking the game for every vertex (which searches all heightmaps each time): frames reach 257 m
+  /// across. A vertex on a zone border is in two heightmaps and is counted once.
+  /// </para>
   /// </remarks>
   public static Measurement? Measure(Frame frame, float? target)
   {
-    var heights = new List<(float Height, float Generated)>();
-    foreach (var (x, z) in frame.Vertices())
+    var (minX, minZ, maxX, maxZ) = frame.Bounds;
+    int width = maxX - minX + 1, depth = maxZ - minZ + 1;
+    var expected = 0;
+    for (var z = minZ; z <= maxZ; z++)
     {
-      var point = new Vector3(x, 0f, z);
-      if (!Heightmap.GetHeight(point, out var height))
+      for (var x = minX; x <= maxX; x++)
       {
-        return null;
+        if (frame.Contains(x, z))
+        {
+          expected++;
+        }
       }
+    }
 
-      heights.Add((height, height - Change(point)));
+    var seen = new bool[width, depth];
+    var heights = new List<(float Height, float Generated)>(expected);
+    foreach (var heightmap in Heightmap.s_heightmaps)
+    {
+      Read(heightmap);
     }
 
     if (heights.Count == 0)
@@ -264,30 +301,52 @@ internal static class Probe
       }
     }
 
-    return new Measurement(balance, cut, fill, outOfReach, heights.Count, lowest, highest);
-  }
+    return new Measurement(balance, cut, fill, outOfReach, heights.Count, expected, lowest, highest);
 
-  /// <summary>
-  /// How far a vertex has already been moved from the generated ground. The game keeps this per
-  /// heightmap in its terrain compiler, which every client loads from the network; no compiler means
-  /// nobody has changed the terrain there.
-  /// </summary>
-  private static float Change(Vector3 point)
-  {
-    var compiler = TerrainComp.FindTerrainCompiler(point);
-    if (compiler is null || compiler.m_levelDelta is null || compiler.m_hmap is null)
+    void Read(Heightmap heightmap)
     {
-      return 0f;
-    }
+      // Vertices only sit on whole metres at the game's scale of 1; anything else isn't terrain we level.
+      if (heightmap == null || heightmap.m_heights.Count == 0 || !Mathf.Approximately(heightmap.m_scale, 1f))
+      {
+        return;
+      }
 
-    compiler.m_hmap.WorldToVertex(point, out var x, out var y);
-    var width = compiler.m_width + 1;
-    if (x < 0 || y < 0 || x >= width || y >= width)
-    {
-      return 0f;
-    }
+      var origin = heightmap.transform.position;
+      var size = heightmap.m_width + 1;
+      var half = heightmap.m_width / 2;
+      int originX = Mathf.RoundToInt(origin.x) - half, originZ = Mathf.RoundToInt(origin.z) - half;
+      int fromJ = Math.Max(0, minX - originX), toJ = Math.Min(size - 1, maxX - originX);
+      int fromI = Math.Max(0, minZ - originZ), toI = Math.Min(size - 1, maxZ - originZ);
+      if (fromJ > toJ || fromI > toI)
+      {
+        return;
+      }
 
-    var index = y * width + x;
-    return compiler.m_levelDelta[index] + compiler.m_smoothDelta[index];
+      var compiler = TerrainComp.FindTerrainCompiler(origin);
+      if (compiler != null && (compiler.m_hmap != heightmap || compiler.m_levelDelta is null))
+      {
+        compiler = null;
+      }
+
+      for (var i = fromI; i <= toI; i++)
+      {
+        for (var j = fromJ; j <= toJ; j++)
+        {
+          int x = originX + j, z = originZ + i;
+          if (seen[x - minX, z - minZ] || !frame.Contains(x, z))
+          {
+            continue;
+          }
+
+          seen[x - minX, z - minZ] = true;
+          var index = i * size + j;
+          var height = heightmap.m_heights[index] + origin.y;
+          // How far the vertex has already been moved from the generated ground; no compiler means
+          // nobody has changed the terrain of this heightmap.
+          var change = compiler is null ? 0f : compiler.m_levelDelta[index] + compiler.m_smoothDelta[index];
+          heights.Add((height, height - change));
+        }
+      }
+    }
   }
 }

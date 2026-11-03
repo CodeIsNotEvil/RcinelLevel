@@ -23,3 +23,6 @@ still only be a square.
 setting the server can enforce.
 
 Related: [[0002-neutral-point-is-cut-and-fill-balance]], [[0005-everyone-needs-the-mod]]
+
+**Changed 2026-11-03** by [[0014-hoe-levels-a-brush-inside-the-frame]]: the hoe no longer levels the
+whole frame per use, but a brush where the player aims, cut off at the frame's edge.

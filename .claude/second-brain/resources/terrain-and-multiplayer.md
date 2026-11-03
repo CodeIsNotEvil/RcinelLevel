@@ -28,6 +28,11 @@ Read from the decompiled game (`assembly_valheim.dll`, Unity 6000.0.75f1, 2026-1
   are 1 m apart**: the steepest wall the terrain can show is the whole height step across one 1 m
   cell (3 m up over 1 m across is about 72°). A truly vertical wall isn't possible in Valheim's
   terrain; the hoe can make the edge as sharp as the grid allows.
+- **Two level ops on one vertex before the heightmap is rebuilt move it twice.** `LevelTerrain` adds
+  "target minus the height in `m_heights`" to the vertex's stored change, and `m_heights` is only
+  rebuilt a frame or more later (`DoOperation` calls `Heightmap.Poke(1)`, a late update). The first
+  version's overlapping tiles left spikes and pits along every edge (owner's test, 2026-11-03).
+  Ops placed in one go must partition the area.
 - **Square ops are aligned to the world grid.** The rotation in the package is only used by paint
   ops; levelling ignores it. Straight walls run north–south or east–west.
 - Every vertex's change is clamped to **±8 m** from the generated ground (`m_levelDelta`), which can

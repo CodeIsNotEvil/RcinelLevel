@@ -6,23 +6,27 @@ using UnityEngine;
 namespace Rcinel.Level;
 
 /// <summary>
-/// What the player does with the probe and the level hoe (decision 0012), and what they see of it.
+/// What the player does with the probe and the level hoe (decisions 0012, 0014), and what they see.
 /// </summary>
 /// <remarks>
 /// <para>
-/// While the probe is in the left hand the frame follows the aim until it is pinned; the hoe levels
-/// the frame the probe last showed. Resizing and the height work with either tool held. Every key is a
-/// config entry (<see cref="Settings"/>).
+/// The probe frames an area: the frame follows its aim until pinned, and pinning takes the probe's
+/// cut-and-fill height as the target. The level hoe then levels where the player aims, a brush at a
+/// time, as far as the frame reaches, to that target. Resizing and the height work with either tool
+/// held. Every key is a config entry, read by the player's keyboard layout (<see cref="Keys"/>).
 /// </para>
 /// <para>
 /// The probe measures again whenever the frame changes and twice a second otherwise, because the
-/// ground under it changes as the player (or anyone else) digs.
+/// ground under it changes as people dig.
 /// </para>
 /// </remarks>
 internal sealed class Controls : IDisposable
 {
   private const float MeasureInterval = 0.5f;
   private const float AimDistance = 60f;
+
+  private static readonly int GroundMask = LayerMask.GetMask("terrain");
+  private static readonly int AnythingMask = LayerMask.GetMask("terrain", "piece", "piece_nonsolid", "static_solid", "Default", "Default_small");
 
   private readonly Settings _settings;
   private readonly ManualLogSource _logger;
@@ -43,8 +47,10 @@ internal sealed class Controls : IDisposable
   /// <summary>The one instance, for <see cref="LevelAction"/>, which the game creates.</summary>
   public static Controls? Current { get; private set; }
 
-  /// <summary>The height the hoe levels to: set by hand, else the probe's balance.</summary>
-  private float? Target => _frame.ManualHeight ?? _measurement?.Balance;
+  /// <summary>The height the hoe levels to: set by hand, else the probe's result from when the frame was pinned, else the live one.</summary>
+  private float? Target => _frame.ManualHeight ?? _frame.PinnedBalance ?? _measurement?.Balance;
+
+  private string TargetSource => _frame.ManualHeight is not null ? "by hand" : _frame.PinnedBalance is not null ? "probe, at pinning" : "probe";
 
   public void Update()
   {
@@ -77,9 +83,7 @@ internal sealed class Controls : IDisposable
 
     if (_frame.Revision != _measuredRevision || Time.time - _measuredAt > MeasureInterval)
     {
-      _measurement = _frame.Placed ? Probe.Measure(_frame, _frame.ManualHeight) : null;
-      _measuredRevision = _frame.Revision;
-      _measuredAt = Time.time;
+      Measure();
     }
 
     if (!_frame.Placed)
@@ -89,12 +93,12 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    _view.Show(_frame, Target);
-    _readout.Show(Describe(probe));
+    _view.Show(_frame, Target, hoe ? Brush(player) : null);
+    _readout.Show(Describe(probe, hoe));
   }
 
-  /// <summary>Called when the level hoe's piece is placed.</summary>
-  public void LevelFrame()
+  /// <summary>Called when the level hoe's piece is placed at <paramref name="point"/>.</summary>
+  public void LevelAt(Vector3 point)
   {
     var player = Player.m_localPlayer;
     if (player == null)
@@ -108,17 +112,31 @@ internal sealed class Controls : IDisposable
       return;
     }
 
-    var target = Target;
-    if (target is null)
+    // Levelling with a frame that follows the aim would move the frame, and its target, with every
+    // stroke; the first stroke pins it where it is.
+    if (!_frame.Pinned)
+    {
+      Measure();
+      _frame.SetPinned(true, _measurement?.Balance);
+      player.Message(MessageHud.MessageType.TopLeft, "Frame pinned");
+    }
+
+    if (Target is not { } target)
     {
       player.Message(MessageHud.MessageType.Center, "The ground under the frame isn't loaded yet.");
       return;
     }
 
-    var tiles = TerrainTiles.Cover(_frame);
-    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, target.Value, _settings.OpsPerFrame.Value));
-    _logger.LogInfo($"Levelling {_frame.Describe()} at ({_frame.CenterX}, {_frame.CenterZ}) to {target.Value:0.00} m with {tiles.Count} terrain edits.");
-    player.Message(MessageHud.MessageType.TopLeft, $"Levelling to {target.Value:0.00} m");
+    var brush = BrushBounds(point);
+    var tiles = TerrainTiles.Cover(brush, (x, z) => _frame.Contains(x, z));
+    if (tiles.Count == 0)
+    {
+      player.Message(MessageHud.MessageType.Center, "Aim inside the frame.");
+      return;
+    }
+
+    RcinelLevelPlugin.Instance.StartCoroutine(TerrainTiles.Level(tiles, target, _settings.OpsPerFrame.Value));
+    _logger.LogDebug($"Levelling around ({Mathf.RoundToInt(point.x)}, {Mathf.RoundToInt(point.z)}) to {target:0.00} m with {tiles.Count} terrain edits.");
   }
 
   public void Dispose()
@@ -130,27 +148,35 @@ internal sealed class Controls : IDisposable
     }
   }
 
+  private void Measure()
+  {
+    _measurement = _frame.Placed ? Probe.Measure(_frame, Target) : null;
+    _measuredRevision = _frame.Revision;
+    _measuredAt = Time.time;
+  }
+
   private void HandleInput(bool probe)
   {
-    var resizeHeld = ZInput.GetKey(_settings.ResizeModifier.Value, logWarning: false);
-    var heightHeld = ZInput.GetKey(_settings.HeightModifier.Value, logWarning: false);
+    var resizeHeld = Keys.Held(_settings.ResizeModifier.Value);
+    var heightHeld = Keys.Held(_settings.HeightModifier.Value);
     ScrollPatch.Suppress = resizeHeld || heightHeld;
 
-    if (probe && Pressed(_settings.CycleShape.Value))
+    if (probe && Keys.Pressed(_settings.CycleShape.Value))
     {
       _frame.CycleShape();
     }
 
-    if (probe && Pressed(_settings.PinFrame.Value))
+    if (probe && Keys.Pressed(_settings.PinFrame.Value))
     {
       if (_frame.Pinned)
       {
-        _frame.SetPinned(false);
+        _frame.SetPinned(false, null);
       }
       else if (Aim(GroundMask) is { } point)
       {
         _frame.MoveTo(point);
-        _frame.SetPinned(true);
+        Measure();
+        _frame.SetPinned(true, _measurement?.Balance);
       }
     }
 
@@ -168,37 +194,63 @@ internal sealed class Controls : IDisposable
       }
     }
 
-    if (Pressed(_settings.PickHeight.Value) && Aim(AnythingMask) is { } picked)
+    if (Keys.Pressed(_settings.PickHeight.Value) && Aim(AnythingMask) is { } picked)
     {
       _frame.SetManualHeight(picked.y);
     }
 
-    if (Pressed(_settings.ResetHeight.Value))
+    if (Keys.Pressed(_settings.ResetHeight.Value))
     {
       _frame.SetManualHeight(null);
+      // Measure without the old target, then let a pinned frame take the fresh result.
+      Measure();
+      _frame.Remeasured(_measurement?.Balance);
     }
   }
 
-  private string Describe(bool probe)
+  /// <summary>Where the hoe would level now: the build ghost's spot, as the game would place the piece.</summary>
+  private (int MinX, int MinZ, int MaxX, int MaxZ)? Brush(Player player)
+  {
+    var ghost = player.m_placementGhost;
+    if (ghost != null && ghost.activeSelf)
+    {
+      return BrushBounds(ghost.transform.position);
+    }
+
+    return Aim(GroundMask) is { } point ? BrushBounds(point) : null;
+  }
+
+  private (int MinX, int MinZ, int MaxX, int MaxZ) BrushBounds(Vector3 point)
+  {
+    int x = Mathf.RoundToInt(point.x), z = Mathf.RoundToInt(point.z), r = _settings.HoeBrush.Value;
+    return (x - r, z - r, x + r, z + r);
+  }
+
+  private string Describe(bool probe, bool hoe)
   {
     var text = new StringBuilder();
-    text.Append(probe ? "Ground probe" : "Level hoe").Append(" · ").Append(_frame.Describe());
-    if (probe)
+    text.Append(probe ? "Ground probe" : "Level hoe").Append(" · ").Append(_frame.Describe())
+      .Append(" · ").Append(_frame.Pinned ? "pinned" : "follows your aim");
+    if (hoe)
     {
-      text.Append(" · ").Append(_frame.Pinned ? "pinned" : "follows your aim");
+      var side = 2 * _settings.HoeBrush.Value + 1;
+      text.Append($" · brush {side} × {side} m");
     }
 
     text.AppendLine();
     if (_measurement is { } m && Target is { } target)
     {
-      text.Append($"Target {target:0.00} m ({(_frame.ManualHeight is null ? "probe" : "by hand")})")
-        .Append($" · dig {m.Cut:0.0} m³ · fill {m.Fill:0.0} m³");
+      text.Append($"Target {target:0.00} m ({TargetSource})").Append($" · dig {m.Cut:0} m³ · fill {m.Fill:0} m³");
       if (m.OutOfReach > 0)
       {
         text.Append($" · {m.OutOfReach} points beyond the game's ±{Probe.MaxChange:0} m limit");
       }
 
-      text.AppendLine().Append($"Probe: balance {m.Balance:0.00} m · ground {m.Lowest:0.0} to {m.Highest:0.0} m");
+      text.AppendLine().Append($"Probe now: balance {m.Balance:0.00} m · ground {m.Lowest:0.0} to {m.Highest:0.0} m");
+      if (m.Loaded < m.Expected)
+      {
+        text.Append($" · only {100 * m.Loaded / Math.Max(1, m.Expected)}% of the frame is loaded, the rest is too far away");
+      }
     }
     else
     {
@@ -213,11 +265,6 @@ internal sealed class Controls : IDisposable
 
     text.Append($"[{_settings.ResizeModifier.Value} + wheel] size   [{_settings.HeightModifier.Value} + wheel] height   ")
       .Append($"[{_settings.PickHeight.Value}] take height   [{_settings.ResetHeight.Value}] probe height");
-    if (!probe)
-    {
-      text.Append("   · place to level");
-    }
-
     return text.Append("</size>").ToString();
   }
 
@@ -227,13 +274,8 @@ internal sealed class Controls : IDisposable
     _readout.Hide();
   }
 
-  private static bool Pressed(KeyCode key) => key != KeyCode.None && ZInput.GetKeyDown(key, logWarning: false);
-
-  /// <summary>The cardinal direction the camera looks along, for the rectangle's sides.</summary>
+  /// <summary>The direction the camera looks along, for the rectangle's sides.</summary>
   private static Vector3 Facing() => GameCamera.instance != null ? GameCamera.instance.transform.forward : Vector3.forward;
-
-  private static readonly int GroundMask = LayerMask.GetMask("terrain");
-  private static readonly int AnythingMask = LayerMask.GetMask("terrain", "piece", "piece_nonsolid", "static_solid", "Default", "Default_small");
 
   private static Vector3? Aim(int mask)
   {

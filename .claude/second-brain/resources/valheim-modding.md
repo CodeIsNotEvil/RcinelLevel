@@ -86,6 +86,12 @@ with `TerrainOp`, `TerrainComp`, `Heightmap`, `TerrainModifier`, `ItemDrop`, `Pi
   Left Shift run and AltPlace, C walk, Q autorun, X sit, F guardian power, V auto-pickup, Tab
   inventory, M map, G radial menu, T emotes, F5 console, 1–8 hotbar. Read keys with
   `ZInput.GetKey(KeyCode, logWarning: false)`; Valheim runs on Unity's new Input System (2026-11-03).
+- **Keys are physical positions.** `ZInput.GetKey(KeyCode)` reads `Keyboard.current[Key]`, and the
+  Input System's `Key` is a position on a US keyboard: `KeyCode.Y` is the key labelled Z on QWERTZ.
+  For letters, look the key up with `Keyboard.FindKeyOnCurrentKeyboardLayout("y")` (needs a reference
+  to the game's `Unity.InputSystem.dll`) (2026-11-03).
+- **BepInEx keeps saved config values over new defaults**: changing a default in code doesn't change
+  an existing config file; say so, or change the file, when a default moves (2026-11-03).
 - **The scroll wheel in build mode** turns the ghost only when the selected piece has `m_canRotate`;
   otherwise the camera zooms (`GameCamera`). RcinelLevel hides the wheel from the game while a frame
   modifier is held (`ScrollPatch`) (2026-11-03).

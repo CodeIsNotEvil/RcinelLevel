@@ -53,3 +53,7 @@ Related: [[0010-area-shapes-and-scroll]], [[0006-probe-area-set-by-player]], [[r
 The defaults are now: cycle shape `Y`, pin frame `B` (new: the frame follows the probe's aim until
 pinned), resize `Left Alt` + wheel, height `H` + wheel, take height `J`, reset to the probe `U`.
 Keys the game leaves free: B, H, I, J, K, L, N, O, P, U, Y, Z.
+
+**Keys follow the keyboard layout (2026-11-03).** In the first test `Y` did nothing on the owner's
+German keyboard: Valheim's Input System reads keys by their US position, where QWERTZ has Z. Letters
+and digits in the config now mean the key that types them on the player's layout (`Keys.cs`).
