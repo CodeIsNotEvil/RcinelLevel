@@ -39,6 +39,14 @@ package format page and the upload page's validator) when the first package is b
   assemblies, which can't be put in the repository ([[valheim-modding]]). Until that is solved,
   release builds come from the owner's machine and the workflow only packages and uploads.
 
+## How it is built (2026-11-03, for 0.1.0)
+`scripts/package.py` builds Release, checks the version against `RcinelLevelPlugin.Version` and the
+newest dated CHANGELOG section, writes `manifest.json` (no BOM) and zips `manifest.json`, `icon.png`,
+`README.md` (from `package/README.md`, the Thunderstore page), `CHANGELOG.md`, `LICENSE` and the plugin
+under `plugins/` (DLL, PDB, `models/`, `icons/`). Dependencies: `denikson-BepInExPack_Valheim-5.4.2333`
+(what Jotunn asks for) and `ValheimModding-Jotunn-2.30.2`. The owner uploads the zip by hand on the
+website; no token in the repository.
+
 ## Before the first upload (checklist)
 - The owner tried the exact zip in the LaunchHeim `test` instance, alone and with a second player on
   a server.

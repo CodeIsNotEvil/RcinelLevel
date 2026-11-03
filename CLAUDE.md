@@ -38,7 +38,13 @@ depend on. The rules below come from the owner's other repositories, CodeIsNotEv
 ```fish
 cp Environment.props.example Environment.props   # once: the game's path and the LaunchHeim test instance
 dotnet build RcinelLevel.slnx                     # builds and copies into the test instance
+scripts/package.py                                # the Thunderstore zip in dist/
 ```
+
+A release: the version in `Directory.Build.props` and `RcinelLevelPlugin.Version`, a dated section in
+`CHANGELOG.md` (the package's changelog tab), then `scripts/package.py`, which refuses mismatches. The
+owner uploads the zip on thunderstore.io as CodeIsNotEvil and decides when to tag `vX.Y.Z`; the
+build can't run in CI without the game's assemblies.
 
 The build compiles against the local game's assemblies, publicized into `obj/` by
 BepInEx.AssemblyPublicizer; nothing is written into the game folder (JotunnLib's own build props would

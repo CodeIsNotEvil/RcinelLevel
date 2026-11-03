@@ -39,3 +39,4 @@ status: active
 - [[0020-hints-in-the-key-bar-and-frame-kept-per-world]]: controls in the key hint bar; the frame kept per world with the character
 - [[0021-dev-commands]]: `rcinellevel_nostone` and `rcinellevel_dig`, cheats for the session only
 - [[0022-moat-for-a-drawbridge]]: a moat around the frame, 4 m (Rustic) or 8 m (Drawbridge) wide, 3 m deep
+- [[0023-first-release-built-locally-uploaded-by-hand]]: `scripts/package.py` locally, the owner uploads to Thunderstore
