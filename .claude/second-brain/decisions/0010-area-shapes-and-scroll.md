@@ -34,3 +34,6 @@ the height can only come from the probe.
   frame (shape, size, position).
 
 Related: [[0006-probe-area-set-by-player]], [[0002-neutral-point-is-cut-and-fill-balance]]
+
+**Confirmed 2026-11-03**: the facing edge moves, the opposite edge stays. The controls are in
+[[0012-controls]].

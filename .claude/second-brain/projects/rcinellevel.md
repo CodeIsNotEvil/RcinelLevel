@@ -64,9 +64,13 @@ on GitHub). No code yet.
 - Looks: the probe is a long rod you push into the ground to feel for hard layers (a soil probe);
   the level hoe's design was left to Claude ([[0011-model-designs]]).
 
-## Open questions for the owner
-- The controls: how to pick the shape, set the height by hand, and keep scroll-to-resize apart from
-  the game's own uses of the wheel.
+- Controls: the probe cycles the shape, modifier + scroll resizes, height by modifier + scroll,
+  eyedropper or reset to the probe result; keys are config entries ([[0012-controls]]).
+
+## Open
+- How the tools sit in the hand: the owner sends a screenshot after the first test, and the attach
+  rotation and offset are tuned from it.
+- Whether the default keys clash with the game's bindings: checked in the first test.
 - Does it go on the owner's app site too?
 
 ## Plan (proposal, nothing decided)
